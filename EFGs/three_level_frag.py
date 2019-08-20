@@ -1,0 +1,410 @@
+import rdkit
+import rdkit.Chem as Chem
+from .ifg import identify_functional_groups
+from itertools import combinations
+import re
+
+lg = rdkit.RDLogger.logger() 
+lg.setLevel(rdkit.RDLogger.CRITICAL)
+
+patt = r'[C,H][0-9]{2}[0,-1,1]'
+
+class WordNotFoundError(Exception):
+    pass
+
+def standize(smiles, RemoveMap=True):
+    '''Given any smiles representation, return the conanical smiles. Can also remove atom
+    mapped numbers if RemoveMap set to True. (Default: True)'''
+    mol = Chem.MolFromSmiles(smiles, sanitize=False)
+    if not RemoveMap:
+        return Chem.MolToSmiles(mol)
+    for atom in mol.GetAtoms():
+        atom.SetAtomMapNum(0)
+    raw_smiles = Chem.MolToSmiles(mol)
+    return Chem.MolToSmiles(Chem.MolFromSmiles(raw_smiles))
+
+def sp3merge(atom1, atom2):
+    '''Given two atoms, to see if they can merge into a simple carbon chain.'''
+    if atom1.GetSymbol() == atom2.GetSymbol() == 'C':
+        if atom1.GetIsAromatic() == atom2.GetIsAromatic() == False and atom1.GetDegree()<3 and atom2.GetDegree()<3:
+            return Chem.BondType.SINGLE
+    return False
+
+def aromaticmerge(atom1, atom2, bond):
+    '''Given two atoms and bond between them, to see if they can merge into an aromatic ring.'''
+    if atom1.GetIsAromatic() and atom2.GetIsAromatic() and bond.GetIsAromatic():
+        return Chem.BondType.AROMATIC
+    if atom1.GetIsAromatic() or atom2.GetIsAromatic():
+        if bond.GetBondTypeAsDouble()==2.0 or ((atom1.GetFormalCharge()!=0 and atom1.GetIsAromatic()) or \
+        (atom2.GetFormalCharge()!=0 and atom2.GetIsAromatic())):
+            return Chem.BondType.DOUBLE
+    return False
+
+def AtomListToSubMol(mol, amap, bmap=(), includeConformer=False):
+    """
+    Parameters
+    ----------
+        mol: rdkit.Chem.rdchem.Mol
+            Molecule
+        amap: array-like
+            List of atom indices (zero-based)
+        bmap: array-like
+            List of bond indices (zero-based. Defult=range(mol.GetNumBonds()))
+        includeConformer: bool (default=False)
+            Toogle to include atoms coordinates in submolecule.
+
+    Returns
+    -------
+        submol: rdkit.Chem.rdchem.RWMol
+            Submol determined by specified atom list
+    """
+    if not bmap: bmap=range(mol.GetNumBonds())
+    if not isinstance(amap, list):
+        amap = list(amap)
+    if not isinstance(bmap, list):
+        bmap = list(bmap)
+    submol = Chem.RWMol(Chem.MolFromSmiles(''))
+    for aix in amap:
+        submol.AddAtom(mol.GetAtomWithIdx(aix))
+    for i, j in combinations(amap, 2):
+        bond = mol.GetBondBetweenAtoms(i, j)
+        if bond and bond.GetIdx() in bmap:
+            submol.AddBond(amap.index(i),
+                           amap.index(j),
+                           bond.GetBondType())
+    if includeConformer:
+        for conf in mol.GetConformers():
+            new_conf = Chem.Conformer(len(amap))
+            for i in range(len(amap)):
+                new_conf.SetAtomPosition(i, conf.GetAtomPosition(amap[i]))
+                new_conf.SetId(conf.GetId())
+                new_conf.Set3D(conf.Is3D())
+            submol.AddConformer(new_conf)
+    return submol
+
+def extractAromatic(m):
+    '''Given a mol object, return the 'aromatic' part in that compound.
+    Return: aro: a list of smiles of aromatic structures
+    idx: a list of atom indexes corresponding to aromatic structures'''
+    # rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
+    # passed = {}
+    aro, new_mol_index = [], []
+    amap, bmap=set(), set()
+    Chem.Kekulize(m)
+    rinfo = m.GetRingInfo()
+    n_atom = rinfo.AtomRings()
+    for bond in m.GetBonds():
+        atom1 = bond.GetBeginAtom()
+        atom2 = bond.GetEndAtom()
+        order = aromaticmerge(atom1, atom2, bond)
+        if order:
+            amap.update([atom1.GetIdx(), atom2.GetIdx()])
+            bmap.add(bond.GetIdx())
+    amap = list(amap)
+    bmap = list(bmap)
+    rwmol = AtomListToSubMol(m.__copy__(), amap, bmap)
+    for mm in Chem.GetMolFrags(rwmol):
+        cur_mol = AtomListToSubMol(rwmol, mm)
+        std_smiles = standize(Chem.MolToSmiles(cur_mol))
+        if any([atom.GetIsAromatic() for atom in Chem.MolFromSmiles(std_smiles).GetAtoms()]):
+            aro.append(std_smiles)
+            new_mol_index.append(tuple([amap[i] for i in mm]))
+        else:
+            cur_idx = [amap[i] for i in mm]
+            updated = list(set([x for group in n_atom for x in group if len(set(cur_idx)&set(group))>3]))
+            cur_mol = AtomListToSubMol(m, updated)
+            aro.append(standize(Chem.MolToSmiles(cur_mol)))
+            new_mol_index.append(tuple(updated))
+    #     if order:
+    #         if atom1.GetIdx() not in passed:
+    #             passed[atom1.GetIdx()] = rwmol.AddAtom(atom1)
+    #         if atom2.GetIdx() not in passed:
+    #             passed[atom2.GetIdx()] = rwmol.AddAtom(atom2)
+    #         rwmol.AddBond(passed[atom1.GetIdx()], passed[atom2.GetIdx()], order=bond.GetBondType())
+    # passed_ = {value:key for key, value in passed.items()}
+    # new_mol_index = [tuple(map(lambda t:passed_[t], i)) for i in Chem.GetMolFrags(rwmol)]
+    # for mm in Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False):
+    #     aro.append(standize(Chem.MolToSmiles(mm)))
+    return aro, new_mol_index
+
+def aro_ifg(mol, idx2map=(), mergeAtom=True):
+    aro, aro_idx = extractAromatic(mol)
+    if idx2map:
+        masked = [idx2map[x] for i in aro_idx for x in i]
+        aro_idx = [tuple(map(lambda t:idx2map[t],x)) for x in aro_idx]
+        UseMap = True
+    else:
+        masked = [x for i in aro_idx for x in i]
+        UseMap = False
+    fgs = identify_functional_groups(mol, MapNum=UseMap, masked=set(masked), mergeAtom=mergeAtom)
+    return aro, aro_idx, fgs
+
+def breakBond(mol, MapNum=False, returnidx=False):
+    '''Given a mol, this function would break all the single bond in the molecule,
+    and then return (fragments smiles, Carbons/hydrogens Types)'''
+    emol = Chem.RWMol(mol)
+    plain = []
+    idx2map = {}
+    if returnidx: CHs_idx = []
+    for atom in emol.GetAtoms():
+        if not MapNum:
+            atom.SetAtomMapNum(atom.GetIdx())
+        idx2map[atom.GetIdx()]=atom.GetAtomMapNum()
+        atom.SetAtomMapNum(0)
+    for bond in mol.GetBonds():
+        if bond.GetBondTypeAsDouble() == 1.0:
+            atom1 = bond.GetBeginAtom()
+            atom2 = bond.GetEndAtom()
+            if sp3merge(atom1, atom2):
+                continue
+            emol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+    edited = emol.GetMol()
+    frags = list(Chem.GetMolFrags(edited, asMols=False, sanitizeFrags=False))
+    fragmols = list(Chem.GetMolFrags(edited, asMols=True, sanitizeFrags=False))
+    idx_copy, mols_copy = list(frags), list(fragmols)
+    for frag, fragmol in zip(idx_copy, mols_copy):
+        if len(frag)==1 and mol.GetAtomWithIdx(frag[0]).GetSymbol() in ['C', 'H']:
+            atom = mol.GetAtomWithIdx(frag[0])
+            plain.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())+str(atom.GetFormalCharge()))
+            frags.remove(frag)
+            fragmols.remove(fragmol)
+            if returnidx:
+                CHs_idx.append(frag)
+    if not returnidx:
+        return [Chem.MolToSmiles(x) for x in fragmols], plain
+    mapped_frag_idx = [tuple(map(lambda x: idx2map[x],group)) for group in frags]
+    mapped_CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
+    return [Chem.MolToSmiles(x) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
+
+def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, extra_backup={}):
+    '''
+    raw_mol: rdkit mol object to be decompose
+    # ExplicitHs: Use explicit Hs. (Default=False) 
+    returnidx: Whether cooresponding atom index of EFGs shouls be returned. (Default=False)
+    toEnd: Whether to decompose to the end. (Default=False, will only do 1-step decomposition)
+    vocabulary: A list of smiles which contains EFGs. This argument would be ignore if 
+    toEnd=False. If toEnd is set to True, this argument is required. (Default=None)
+    extra_included: If fragments outside of vocabulary should be parsed. (Default=False, will throw
+    an error if a fragment cannot be found in vocabulary). When it is set to True, additional fragments
+    would be simply classified based on their aromaticity.
+    extra_backup: If an empty dictionary is provided, additional fragnents' smiles would be added. 
+    return:
+    Functional groups' smiles (or 'Aromatic'/'Non-aromatic') and C/Hs
+    (or)
+    Functional groups' smiles (or 'Aromatic'/'Non-aromatic'), C/Hs, atom indices of funtional groups
+    and CHs (if returnidx=True)
+    '''
+    mol = raw_mol.__copy__()
+    ExplicitHs = any([atom.GetSymbol()=='H' for atom in mol.GetAtoms()])
+    CHs = []
+    CHs_idx = []
+    idx2map = {}
+    if ExplicitHs:
+        n_atom0 = mol.GetNumAtoms()
+        mol = Chem.RemoveHs(mol)
+    for atom in mol.GetAtoms():
+        atom.SetAtomMapNum(atom.GetIdx())
+        idx2map[atom.GetIdx()]=atom.GetAtomMapNum()
+    more_frag, frag_idx, fgs = aro_ifg(mol, idx2map=idx2map)
+    if toEnd:
+        if len(vocabulary)==0: raise WordNotFoundError('No volcabulary but toEnd is set to True.')
+        if extra_included:
+            if not 'Aromatic' in vocabulary:
+                vocabulary.append('Aromatic')
+            if not 'Non-aromatic' in vocabulary:
+                vocabulary.append('Non-aromatic')
+        else:
+            if (('Aromatic' in vocabulary) or ('Non-aromatic' in vocabulary)) and not extra_included:
+                raise WordNotFoundError('Please either remove wild cards in vocabulary or set "extra_included=True"')
+        if not set([fg.atoms for fg in fgs])<=set(vocabulary):
+            extra = [fg for fg in fgs if fg.atoms not in vocabulary]
+            for fg in extra:
+                fg_smiles = fg.atoms
+                fg_idx = fg.atomIds
+                maplists = mol.GetSubstructMatches(Chem.MolFromSmiles(fg_smiles, sanitize=False))
+                for x in maplists:
+                    if set(map(lambda t:idx2map[t],x))==set(fg_idx):
+                        maplist = list(map(lambda t:idx2map[t],x))
+                        break
+                if len(maplists)==0 and standize(Chem.MolToSmiles(mol))==fg_smiles:
+                    maplist = list(map(lambda t:idx2map[t],range(mol.GetNumAtoms())))
+                fgs.remove(fg)
+                submol = smiles2mol(fg_smiles, maplist)
+                ######
+                a,b,c =  aro_ifg(submol, idx2map={atom.GetIdx():atom.GetAtomMapNum() for atom in submol.GetAtoms()}, mergeAtom=False)
+                more_frag.extend(a)
+                frag_idx.extend(b)
+                fgs.extend(c)
+                # fgs.extend(identify_functional_groups(submol, MapNum=True, mergeAtom=False))
+            if not set([fg.atoms for fg in fgs])<=set(vocabulary):
+                extra = [fg for fg in fgs if fg.atoms not in vocabulary]
+                for fg in extra:
+                    fg_smiles = fg.atoms
+                    fg_idx = fg.atomIds
+                    maplists = mol.GetSubstructMatches(Chem.MolFromSmiles(fg_smiles, sanitize=False))
+                    for x in maplists:
+                        if set(map(lambda t:idx2map[t],x))==set(fg_idx):
+                            maplist = list(map(lambda t:idx2map[t],x))
+                            break
+                    fgs.remove(fg)
+                    submol = smiles2mol(fg_smiles, maplist)
+                    a, b, c, d = breakBond(submol, MapNum=True, returnidx=True)
+                    more_frag.extend(a)
+                    frag_idx.extend(c)
+    fgs_atoms = [num for ids in fgs for num in ids.atomIds] + [num2 for tuples in frag_idx for num2 in tuples]
+    fgs_tuple = [ids.atomIds for ids in fgs] + [tuples for tuples in frag_idx]
+    n_atom = mol.GetNumAtoms()
+    rest_atom = {i for i in range(n_atom)}.difference(fgs_atoms)
+    rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
+    passed = {}
+    for bond in mol.GetBonds():
+        atom1 = bond.GetBeginAtom()
+        atom2 = bond.GetEndAtom()
+        if set((atom1.GetIdx(), atom2.GetIdx()))<=rest_atom:
+            if atom1.GetIdx() not in passed:
+                passed[atom1.GetIdx()] = rwmol.AddAtom(atom1)
+            if atom2.GetIdx() not in passed:
+                passed[atom2.GetIdx()] = rwmol.AddAtom(atom2)
+            order = sp3merge(atom1, atom2)
+            if order:
+                rwmol.AddBond(passed[atom1.GetIdx()], passed[atom2.GetIdx()], order=bond.GetBondType())
+    passed_ = {value:key for key, value in passed.items()}
+    new_mol_index = [tuple(map(lambda t:passed_[t], i)) for i in Chem.GetMolFrags(rwmol)]
+    CHs_idx.extend(new_mol_index)
+    for atom in rwmol.GetAtoms():
+        atom.SetAtomMapNum(0)
+    for mid, mm in zip(new_mol_index, Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False)):
+        if mm.GetNumAtoms() == 1 and mm.GetAtomWithIdx(0).GetSymbol() in ['C', 'H']:
+            atom = mol.GetAtomWithIdx(mid[0])
+            CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
+        +str(atom.GetFormalCharge()))
+        else:
+            CHs.append(Chem.MolToSmiles(mm))
+    rest_atom = set(rest_atom).difference(passed)
+    for idx in rest_atom:
+        atom = mol.GetAtomWithIdx(idx)
+        CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
+        +str(atom.GetFormalCharge()))
+        if returnidx: CHs_idx.append((idx,))
+    nonCHs=[fg.atoms for fg in fgs]+more_frag
+    if not set(nonCHs+CHs)<=set(vocabulary) and len(vocabulary)>0:
+        if not extra_included:
+            raise WordNotFoundError('{} not found.'.format(set(nonCHs+CHs).difference(vocabulary)))
+        else:
+            extras = set(nonCHs+CHs).difference(vocabulary)
+            for extra in extras:
+                if re.match(patt, extra):
+                    CHs = ['Aromatic' if x==extra else x for x in CHs]
+                    try:
+                        extra_backup['Aromatic'].add(extra)
+                    except KeyError:
+                        extra_backup['Aromatic']={extra}
+                    continue
+                sub_mol = Chem.MolFromSmiles(extra)
+                if any([atom.GetIsAromatic() for atom in sub_mol.GetAtoms()]):
+                    nonCHs = ['Aromatic' if x==extra else x for x in nonCHs]
+                    CHs = ['Aromatic' if x==extra else x for x in CHs]
+                    try:
+                        extra_backup['Aromatic'].add(extra)
+                    except KeyError:
+                        extra_backup['Aromatic']={extra}
+                else:
+                    nonCHs = ['Non-aromatic' if x==extra else x for x in nonCHs]
+                    CHs = ['Non-aromatic' if x==extra else x for x in CHs]
+                    try:
+                        extra_backup['Non-aromatic'].add(extra)
+                    except KeyError:
+                        extra_backup['Non-aromatic']={extra}
+    if ExplicitHs:
+        for hid in range(n_atom, n_atom0):
+            CHs.append('H010')
+            CHs_idx.append((hid,))
+    if not returnidx:
+        return nonCHs, CHs
+    return nonCHs, CHs, fgs_tuple, CHs_idx
+
+def counter(x, dic, increase = 1):
+    '''A counter to record the occurance of x in dic'''
+    if x in dic:
+        dic[x] += increase
+    else:
+        dic[x] = increase
+
+def smiles2mol(smiles, maplist=None):
+    '''Given a smiles, return a mol'''
+    mol = Chem.MolFromSmiles(smiles)
+    if not mol: mol = Chem.MolFromSmiles(smiles, sanitize=False)
+    mol.UpdatePropertyCache()
+    if maplist:
+        for i,atom in enumerate(mol.GetAtoms()):
+            atom.SetAtomMapNum(maplist[i])
+    return mol
+
+def cleavage(dictionary, MapNum=False, alpha = 0.7, beta = 0.99):
+    '''Given a initial vocabulary (As dictionary of occurance), execute further cleavage under some
+    limitations. Alpha: words (fragments) have less than top alpha (percentage) occurances would be 
+    broken. Beta: words (fragments) have less than beta (percentage) occurances of all functional
+    groups would be broken. Beta would be ignore if alpha is given.'''
+    patt = r'[C,H][0-9]{2}[0,-1,1,4]{0,1}'
+    if not alpha:
+        total_num = sum([dictionary[x] for x in dictionary])
+        rare = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
+    else:
+        qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
+        rare = [x for x in dictionary if dictionary[x]<=qua]
+    for smi in rare:
+        if re.match(patt, smi): continue
+        num = dictionary[smi]
+        del dictionary[smi]
+        mol = smiles2mol(smi)
+        try:
+            fgs = identify_functional_groups(mol, MapNum=MapNum, mergeAtom=False)
+        except RecursionError:
+            continue
+        frags = [x.atoms for x in fgs]
+        rest_atom = set(range(mol.GetNumAtoms())).difference([num for ids in fgs for num in ids.atomIds])
+        rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
+        CHs = []
+        passed = {}
+        for bond in mol.GetBonds():
+            atom1 = bond.GetBeginAtom()
+            atom2 = bond.GetEndAtom()
+            if set((atom1.GetIdx(), atom2.GetIdx()))<rest_atom:
+                if atom1.GetIdx() not in passed:
+                    passed[atom1.GetIdx()] = rwmol.AddAtom(atom1)
+                if atom2.GetIdx() not in passed:
+                    passed[atom2.GetIdx()] = rwmol.AddAtom(atom2)
+                order = sp3merge(atom1, atom2)
+                if order:
+                    rwmol.AddBond(passed[atom1.GetIdx()], passed[atom2.GetIdx()], order=bond.GetBondType())
+        passed_ = {value:key for key, value in passed.items()}
+        new_mol_index = [tuple(map(lambda t:passed_[t], i)) for i in Chem.GetMolFrags(rwmol)]
+        for atom in rwmol.GetAtoms():
+            atom.SetAtomMapNum(0)
+        for mid, mm in zip(new_mol_index, Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False)):
+            if mm.GetNumAtoms() == 1 and mm.GetAtomWithIdx(0).GetSymbol() in ['C', 'H']:
+                atom = mol.GetAtomWithIdx(mid[0])
+                CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
+            +str(atom.GetFormalCharge()))
+            else:
+                CHs.append(Chem.MolToSmiles(mm))
+        for fg in frags:
+            counter(fg, dictionary, increase=num)
+        for ch in CHs:
+            counter(ch, dictionary, increase=num)
+    if not alpha:
+        total_num = sum([dictionary[x] for x in dictionary])
+        rare2 = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
+    else:
+        qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
+        rare2 = [x for x in dictionary if dictionary[x]<=qua]
+    for smi in rare2:
+        if re.match(patt, smi): continue
+        num = dictionary[smi]
+        del dictionary[smi]
+        mol = smiles2mol(smi)
+        frags, CHs = breakBond(mol)
+        for fg in frags:
+            counter(fg, dictionary, increase=num)
+        for ch in CHs:
+            counter(ch, dictionary, increase=num)
