@@ -25,10 +25,16 @@ def shallowMerge(atom_set_list, cur_set):
             shallowMerge(atom_set_list, cur_set)
             break
 
+def GetMatchSeq(mol, smarts, scope):
+    Chem.SanitizeMol(mol)
+    maplists = mol.GetSubstructMatches(Chem.MolFromSmarts(smarts))
+    for x in maplists:
+        if set(x)==scope:
+            return x
+
 # atoms connected by non-aromatic double or triple bond to any heteroatom
 # c=O should not match (see fig1, box 15).  I think using A instead of * should sort that out?
 PATT_DOUBLE_TRIPLE = Chem.MolFromSmarts('A=,#[!#6]')
-# PATT_DOUBLE_TRIPLE = Chem.MolFromSmarts('*A=,#[!#6]')
 # atoms in non aromatic carbon-carbon double or triple bonds
 PATT_CC_DOUBLE_TRIPLE = Chem.MolFromSmarts('C=,#C')
 # acetal carbons, i.e. sp3 carbons connected to two or more oxygens, nitrogens or sulfurs; these O, N or S atoms must have only single bonds
@@ -38,7 +44,6 @@ PATT_OXIRANE_ETC = Chem.MolFromSmarts('[O,N,S]1CC1')
 PATT_CARBONYL = Chem.MolFromSmarts('[!#6]A(=[!#6])')
 
 PATT_TUPLE = (PATT_DOUBLE_TRIPLE, PATT_CC_DOUBLE_TRIPLE, PATT_ACETAL, PATT_OXIRANE_ETC, PATT_CARBONYL)
-# PATT_TUPLE = (PATT_DOUBLE_TRIPLE, PATT_CC_DOUBLE_TRIPLE, PATT_ACETAL, PATT_OXIRANE_ETC)
 
 def identify_functional_groups(raw_mol, MapNum=False, mergeAtom=True, masked=set()):
     marked = set()
@@ -69,7 +74,6 @@ def identify_functional_groups(raw_mol, MapNum=False, mergeAtom=True, masked=set
 #merge all connected marked atoms to a single FG
     groups = []
     while marked:
-        # grp = set([marked.pop()])
         if mergeAtom:
             grp = set([marked.pop()])
             merge(mol, marked, grp)
@@ -88,9 +92,13 @@ def identify_functional_groups(raw_mol, MapNum=False, mergeAtom=True, masked=set
                 if n.GetAtomicNum() == 6:
                     uca.add(n.GetIdx())
 
-        g_mapped = sorted([Idx2map[i] for i in g])
-        union_mapped = sorted([Idx2map[i] for i in g.union(uca)])
-        ifgs.append(ifg(atomIds=tuple(g_mapped), atoms=Chem.MolFragmentToSmiles(mol, g, canonical=True), type=Chem.MolFragmentToSmiles(mol, g.union(uca), canonical=True), typeIds=tuple(union_mapped)))
+        atoms_=Chem.MolFragmentToSmiles(mol, g, canonical=True)
+        type_=Chem.MolFragmentToSmiles(mol, g.union(uca), canonical=True)
+        g_mapped = [Idx2map[i] for i in GetMatchSeq(mol, atoms_, g)]
+        if not GetMatchSeq(mol, type_, g.union(uca)):
+            print(Chem.MolToSmiles(mol), type_, g.union(uca))
+        union_mapped = [Idx2map[i] for i in GetMatchSeq(mol, type_, g.union(uca))]
+        ifgs.append(ifg(atomIds=tuple(g_mapped), atoms=atoms_, type=type_, typeIds=tuple(union_mapped)))
     return ifgs
 
 def main():

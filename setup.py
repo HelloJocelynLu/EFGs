@@ -15,7 +15,7 @@ def read(filename):
 
 setup(
     name="EFGs",
-    version="0.1.0",
+    version="0.2.0",
     url="https://github.com/HelloJocelynLu/EFGs",
     license='MIT',
 
@@ -27,10 +27,7 @@ setup(
 
     packages=find_packages(exclude=('tests',)),
 
-    install_requires=[
-        "rdkit",
-        "torch>=0.4.1"
-        ],
+    install_requires=[],
 
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
