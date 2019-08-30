@@ -11,6 +11,13 @@ EFGs
 
 Extended Functional Groups
 
+Version 0.1.0
+Original Version
+
+Version 0.2.0
+1. Identify functional group: atomID and typeID are arranged based on index order in atom and type.
+2. mol2frag, modified the code (remove the calling of GetSubstructMatches)
+3. mol2frag, fix some substructure decomposition with 'white list'
 Usage
 -----
 
