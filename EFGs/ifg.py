@@ -96,8 +96,9 @@ def identify_functional_groups(raw_mol, MapNum=False, mergeAtom=True, masked=set
         type_=Chem.MolFragmentToSmiles(mol, g.union(uca), canonical=True)
         g_mapped = [Idx2map[i] for i in GetMatchSeq(mol, atoms_, g)]
         if not GetMatchSeq(mol, type_, g.union(uca)):
-            print(Chem.MolToSmiles(mol), type_, g.union(uca))
-        union_mapped = [Idx2map[i] for i in GetMatchSeq(mol, type_, g.union(uca))]
+            union_mapped = [Idx2map[i] for i in g.union(uca)]
+        else:
+            union_mapped = [Idx2map[i] for i in GetMatchSeq(mol, type_, g.union(uca))]
         ifgs.append(ifg(atomIds=tuple(g_mapped), atoms=atoms_, type=type_, typeIds=tuple(union_mapped)))
     return ifgs
 

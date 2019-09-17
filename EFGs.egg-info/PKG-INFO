@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: EFGs
-Version: 0.1.0
+Version: 0.2.2
 Summary: Extended Functional Groups
 Home-page: https://github.com/HelloJocelynLu/EFGs
 Author: Jocelyn Lu
@@ -18,6 +18,16 @@ Description: EFGs
            :alt: Latest Travis CI build status
         
         Extended Functional Groups
+        
+        Version 0.1.0
+        Original Version
+        
+        
+        Version 0.2.0
+        1. Identify functional group: atomID and typeID are arranged based on index order in atom and type.
+        2. mol2frag, modified the code (remove the calling of GetSubstructMatches)
+        3. mol2frag, fix some substructure decomposition with 'white list'
+        
         
         Usage
         -----

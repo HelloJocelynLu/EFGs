@@ -6,5 +6,4 @@ EFGs/three_level_frag.py
 EFGs.egg-info/PKG-INFO
 EFGs.egg-info/SOURCES.txt
 EFGs.egg-info/dependency_links.txt
-EFGs.egg-info/requires.txt
 EFGs.egg-info/top_level.txt
