@@ -12,7 +12,7 @@ patt = r'[C,H][0-9]{2}[0,-1,1]'
 class WordNotFoundError(Exception):
     pass
 
-def standize(smiles, RemoveMap=True, canonical=True):
+def standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True):
     '''Given any smiles representation, return the conanical smiles. Can also remove atom
     mapped numbers if RemoveMap set to True. (Default: True)'''
     mol = Chem.MolFromSmiles(smiles, sanitize=False)
@@ -21,7 +21,7 @@ def standize(smiles, RemoveMap=True, canonical=True):
     for atom in mol.GetAtoms():
         atom.SetAtomMapNum(0)
     raw_smiles = Chem.MolToSmiles(mol, canonical=canonical)
-    return Chem.MolToSmiles(Chem.MolFromSmiles(raw_smiles), canonical=canonical)
+    return Chem.MolToSmiles(Chem.MolFromSmiles(raw_smiles), canonical=canonical, isomericSmiles=isomericSmiles)
 
 def sp3merge(atom1, atom2):
     '''Given two atoms, to see if they can merge into a simple carbon chain.'''
@@ -127,7 +127,7 @@ def extractAromatic(m):
             new_mol_index.append(tuple(updated))
     return aro, new_mol_index
 
-def aro_ifg(mol, idx2map=(), mergeAtom=True):
+def aro_ifg(mol, idx2map=(), mergeAtom=True, isomericSmiles=True):
     aro, aro_idx = extractAromatic(mol)
     if idx2map:
         masked = [idx2map[x] for i in aro_idx for x in i]
@@ -138,7 +138,7 @@ def aro_ifg(mol, idx2map=(), mergeAtom=True):
     else:
         masked = [x for i in aro_idx for x in i]
         UseMap = False
-    fgs = identify_functional_groups(mol, MapNum=UseMap, masked=set(masked), mergeAtom=mergeAtom)
+    fgs = identify_functional_groups(mol, MapNum=UseMap, masked=set(masked), mergeAtom=mergeAtom, isomericSmiles=isomericSmiles)
     return aro, aro_idx, fgs
 
 def breakBond(mol, MapNum=False, returnidx=False):
@@ -178,7 +178,7 @@ def breakBond(mol, MapNum=False, returnidx=False):
     mapped_CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
     return [Chem.MolToSmiles(x) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
 
-def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, extra_backup={}):
+def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, extra_backup={}):
     '''
     raw_mol: rdkit mol object to be decompose
     # ExplicitHs: Use explicit Hs. (Default=False) 
@@ -208,7 +208,7 @@ def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_include
     for atom in mol.GetAtoms():
         atom.SetAtomMapNum(atom.GetIdx())
         idx2map[atom.GetIdx()]=atom.GetAtomMapNum()
-    more_frag, frag_idx, fgs = aro_ifg(mol, idx2map=idx2map)
+    more_frag, frag_idx, fgs = aro_ifg(mol, idx2map=idx2map, isomericSmiles=isomericSmiles)
     # Further decomposition
     if toEnd:
         if len(vocabulary)==0: raise WordNotFoundError('No volcabulary but toEnd is set to True.')
@@ -228,10 +228,10 @@ def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_include
                 fg_smiles = fg.atoms
                 fg_idx = fg.atomIds
                 submol = smiles2mol(fg_smiles, fg_idx)
-                temp_aro, temp_aro_idx, temp_frags = aro_ifg(Chem.MolFromSmiles(standize(fg_smiles, canonical=False)), idx2map={atom.GetIdx():atom.GetAtomMapNum() for atom in submol.GetAtoms()}, mergeAtom=False)
-                if any([Chem.MolFromSmiles(temp_fg.atoms)==None for temp_fg in temp_frags]) or any([Chem.MolFromSmiles(x)==None for x in temp_aro]):
+                temp_aro, temp_aro_idx, temp_frags = aro_ifg(Chem.MolFromSmiles(fg_smiles), idx2map={atom.GetIdx():atom.GetAtomMapNum() for atom in submol.GetAtoms()}, mergeAtom=False, isomericSmiles=isomericSmiles)
+                if any([Chem.MolFromSmiles(x)==None for x in [temp_fg.atoms for temp_fg in temp_frags]+temp_aro]):
                     White_list.append(fg)
-                    break
+                    continue
                 else:
                     fgs.remove(fg)
                     more_frag.extend(temp_aro)
@@ -240,10 +240,10 @@ def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_include
                     for temp_fg in temp_frags:
                         temp_mol = smiles2mol(temp_fg.atoms, temp_fg.atomIds)
                         if any([atom.GetIsAromatic() for atom in temp_mol.GetAtoms()]):
-                            a,b,c = aro_ifg(Chem.MolFromSmiles(standize(temp_fg.atoms, canonical=False)), idx2map={atom.GetIdx():atom.GetAtomMapNum() for atom in temp_mol.GetAtoms()}, mergeAtom=False)
+                            a,b,c = aro_ifg(Chem.MolFromSmiles(temp_fg.atoms), idx2map={atom.GetIdx():atom.GetAtomMapNum() for atom in temp_mol.GetAtoms()}, mergeAtom=False, isomericSmiles=isomericSmiles)
                             if any([Chem.MolFromSmiles(x)==None for x in a+[m.atoms for m in c]]):
                                 White_list.append(temp_fg)
-                                break
+                                continue
                             else:
                                 more_frag.extend(a)
                                 frag_idx.extend(b)
@@ -350,11 +350,7 @@ def smiles2mol(smiles, maplist=None):
             atom.SetAtomMapNum(maplist[i])
     return mol
 
-def cleavage(dictionary, MapNum=False, alpha = 0.7, beta = 0.99):
-    '''Given a initial vocabulary (As dictionary of occurance), execute further cleavage under some
-    limitations. Alpha: words (fragments) have less than top alpha (percentage) occurances would be 
-    broken. Beta: words (fragments) have less than beta (percentage) occurances of all functional
-    groups would be broken. Beta would be ignore if alpha is given.'''
+def _cleavage1(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=True):
     patt = r'[C,H][0-9]{2}[0,-1,1,4]{0,1}'
     if not alpha:
         total_num = sum([dictionary[x] for x in dictionary])
@@ -363,16 +359,23 @@ def cleavage(dictionary, MapNum=False, alpha = 0.7, beta = 0.99):
         qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
         rare = [x for x in dictionary if dictionary[x]<=qua]
     for smi in rare:
-        if re.match(patt, smi): continue
+        if re.match(patt, smi) or (smi in White_list): continue
         num = dictionary[smi]
         del dictionary[smi]
-        mol = smiles2mol(smi)
-        try:
-            fgs = identify_functional_groups(mol, MapNum=MapNum, mergeAtom=False)
-        except RecursionError:
+        mol = Chem.MolFromSmiles(smi)
+        temp_aro, temp_aro_idx, temp_frags = aro_ifg(mol, mergeAtom=False, isomericSmiles=isomericSmiles)
+        # The whole molecule is an aromatic species
+        if not temp_frags:
+            White_list.append(smi)
+            counter(smi, dictionary, increase=num)
             continue
-        frags = [x.atoms for x in fgs]
-        rest_atom = set(range(mol.GetNumAtoms())).difference([num for ids in fgs for num in ids.atomIds])
+        frags = [temp_fg.atoms for temp_fg in temp_frags]+temp_aro
+        if any([Chem.MolFromSmiles(x)==None for x in frags]):
+            White_list.append(smi)
+            counter(smi, dictionary, increase=num)
+            continue
+        extracted = [ids.atomIds for ids in temp_frags]+temp_aro_idx
+        rest_atom = set(range(mol.GetNumAtoms())).difference([num for ids in extracted for num in ids])
         rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
         CHs = []
         passed = {}
@@ -402,19 +405,113 @@ def cleavage(dictionary, MapNum=False, alpha = 0.7, beta = 0.99):
             counter(fg, dictionary, increase=num)
         for ch in CHs:
             counter(ch, dictionary, increase=num)
+            
+def _cleavage2(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=True):
+    patt = r'[C,H][0-9]{2}[0,-1,1,4]{0,1}'
     if not alpha:
         total_num = sum([dictionary[x] for x in dictionary])
-        rare2 = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
+        rare = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
     else:
         qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
-        rare2 = [x for x in dictionary if dictionary[x]<=qua]
-    for smi in rare2:
-        if re.match(patt, smi): continue
+        rare = [x for x in dictionary if dictionary[x]<=qua]
+    for smi in rare:
+        if re.match(patt, smi) or (smi in White_list): continue
         num = dictionary[smi]
         del dictionary[smi]
-        mol = smiles2mol(smi)
-        frags, CHs = breakBond(mol)
-        for fg in frags:
+        mol = Chem.MolFromSmiles(smi)
+        a, b, c, d = breakBond(mol, returnidx=True)
+        if any([Chem.MolFromSmiles(x)==None for x in a]):
+            White_list.append(smi)
+            counter(smi, dictionary, increase=num)
+            continue
+        for fg in a:
             counter(fg, dictionary, increase=num)
-        for ch in CHs:
+        for ch in b:
             counter(ch, dictionary, increase=num)
+
+def cleavage(dictionary, alpha = 0.7, beta = 0.99, isomericSmiles=True):
+    old_size = len(dictionary)
+    _cleavage1(dictionary, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+    new_size = len(dictionary)
+    white_list=[]
+    while old_size-new_size>0:
+        old_size = len(dictionary)
+        _cleavage1(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+        white_list = list(set(white_list))
+        new_size = len(dictionary)
+    _cleavage2(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+    new_size = len(dictionary)
+    while old_size-new_size>0:
+        old_size = len(dictionary)
+        _cleavage2(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+        white_list = list(set(white_list))
+        new_size = len(dictionary)
+
+# def cleavage(dictionary, MapNum=False, alpha = 0.7, beta = 0.99):
+#     '''Given a initial vocabulary (As dictionary of occurance), execute further cleavage under some
+#     limitations. Alpha: words (fragments) have less than top alpha (percentage) occurances would be 
+#     broken. Beta: words (fragments) have less than beta (percentage) occurances of all functional
+#     groups would be broken. Beta would be ignore if alpha is given.'''
+#     patt = r'[C,H][0-9]{2}[0,-1,1,4]{0,1}'
+#     if not alpha:
+#         total_num = sum([dictionary[x] for x in dictionary])
+#         rare = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
+#     else:
+#         qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
+#         rare = [x for x in dictionary if dictionary[x]<=qua]
+#     for smi in rare:
+#         if re.match(patt, smi): continue
+#         num = dictionary[smi]
+#         del dictionary[smi]
+#         mol = smiles2mol(smi)
+#         try:
+#             fgs = identify_functional_groups(mol, MapNum=MapNum, mergeAtom=False)
+#         except RecursionError:
+#             continue
+#         frags = [x.atoms for x in fgs]
+#         rest_atom = set(range(mol.GetNumAtoms())).difference([num for ids in fgs for num in ids.atomIds])
+#         rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
+#         CHs = []
+#         passed = {}
+#         for bond in mol.GetBonds():
+#             atom1 = bond.GetBeginAtom()
+#             atom2 = bond.GetEndAtom()
+#             if set((atom1.GetIdx(), atom2.GetIdx()))<rest_atom:
+#                 if atom1.GetIdx() not in passed:
+#                     passed[atom1.GetIdx()] = rwmol.AddAtom(atom1)
+#                 if atom2.GetIdx() not in passed:
+#                     passed[atom2.GetIdx()] = rwmol.AddAtom(atom2)
+#                 order = sp3merge(atom1, atom2)
+#                 if order:
+#                     rwmol.AddBond(passed[atom1.GetIdx()], passed[atom2.GetIdx()], order=bond.GetBondType())
+#         passed_ = {value:key for key, value in passed.items()}
+#         new_mol_index = [tuple(map(lambda t:passed_[t], i)) for i in Chem.GetMolFrags(rwmol)]
+#         for atom in rwmol.GetAtoms():
+#             atom.SetAtomMapNum(0)
+#         for mid, mm in zip(new_mol_index, Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False)):
+#             if mm.GetNumAtoms() == 1 and mm.GetAtomWithIdx(0).GetSymbol() in ['C', 'H']:
+#                 atom = mol.GetAtomWithIdx(mid[0])
+#                 CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
+#             +str(atom.GetFormalCharge()))
+#             else:
+#                 CHs.append(Chem.MolToSmiles(mm))
+#         for fg in frags:
+#             counter(fg, dictionary, increase=num)
+#         for ch in CHs:
+#             counter(ch, dictionary, increase=num)
+#     if not alpha:
+#         total_num = sum([dictionary[x] for x in dictionary])
+#         rare2 = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
+#     else:
+#         qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
+#         rare2 = [x for x in dictionary if dictionary[x]<=qua]
+#     for smi in rare2:
+#         if re.match(patt, smi): continue
+#         num = dictionary[smi]
+#         del dictionary[smi]
+#         mol = smiles2mol(smi)
+#         frags, CHs = breakBond(mol)
+#         for fg in frags:
+#             counter(fg, dictionary, increase=num)
+#         for ch in CHs:
+#             counter(ch, dictionary, increase=num)

@@ -45,7 +45,7 @@ PATT_CARBONYL = Chem.MolFromSmarts('[!#6]A(=[!#6])')
 
 PATT_TUPLE = (PATT_DOUBLE_TRIPLE, PATT_CC_DOUBLE_TRIPLE, PATT_ACETAL, PATT_OXIRANE_ETC, PATT_CARBONYL)
 
-def identify_functional_groups(raw_mol, MapNum=False, mergeAtom=True, masked=set()):
+def identify_functional_groups(raw_mol, MapNum=False, mergeAtom=True, masked=set(), isomericSmiles=True):
     marked = set()
     Idx2map = {}
 #mark all heteroatoms in a molecule, including halogens
@@ -92,8 +92,8 @@ def identify_functional_groups(raw_mol, MapNum=False, mergeAtom=True, masked=set
                 if n.GetAtomicNum() == 6:
                     uca.add(n.GetIdx())
 
-        atoms_=Chem.MolFragmentToSmiles(mol, g, canonical=True)
-        type_=Chem.MolFragmentToSmiles(mol, g.union(uca), canonical=True)
+        atoms_=Chem.MolFragmentToSmiles(mol, g, canonical=True, isomericSmiles=isomericSmiles)
+        type_=Chem.MolFragmentToSmiles(mol, g.union(uca), canonical=True, isomericSmiles=isomericSmiles)
         g_mapped = [Idx2map[i] for i in GetMatchSeq(mol, atoms_, g)]
         if not GetMatchSeq(mol, type_, g.union(uca)):
             union_mapped = [Idx2map[i] for i in g.union(uca)]

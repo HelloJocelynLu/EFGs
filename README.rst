@@ -20,6 +20,11 @@ Version 0.2.0
 2. mol2frag, modified the code (remove the calling of GetSubstructMatches)
 3. mol2frag, fix some substructure decomposition with 'white list'
 
+Version 0.3.0
+1. mol2frag: And new argument: isomericSmiles=True
+2. mol2frag: Fix the bug that got wrong index (indexes changed even if canonical is set to False) when deal with aromatic complex molecules 
+3. cleavage, fix the iterative algorithm
+
 
 Usage
 -----
