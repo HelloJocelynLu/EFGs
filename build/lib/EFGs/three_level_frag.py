@@ -431,9 +431,9 @@ def _cleavage2(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=
 
 def cleavage(dictionary, alpha = 0.7, beta = 0.99, isomericSmiles=True):
     old_size = len(dictionary)
-    _cleavage1(dictionary, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
-    new_size = len(dictionary)
     white_list=[]
+    _cleavage1(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+    new_size = len(dictionary)
     while old_size-new_size>0:
         old_size = len(dictionary)
         _cleavage1(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
