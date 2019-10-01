@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: EFGs
-Version: 0.3.1
+Version: 0.3.4
 Summary: Extended Functional Groups
 Home-page: https://github.com/HelloJocelynLu/EFGs
 Author: Jocelyn Lu
@@ -33,6 +33,12 @@ Description: EFGs
         2. mol2frag: Fix the bug that got wrong index (indexes changed even if canonical is set to False) when deal with aromatic complex molecules 
         3. cleavage, fix the iterative algorithm
         
+        Version 0.3.4
+        1. standize: accept mol as inputs. Be able to return order if Order=True
+        2. Fix bugs with dealing with some molecules.
+        e.g.:
+        N#Cc1cccc2[nH][nH]c3nc(c1)-c23
+        O=C=c1cc2ccc3c(c2[nH]1)C=CN=3
         
         Usage
         -----

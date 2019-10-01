@@ -3,6 +3,7 @@ import rdkit.Chem as Chem
 from .ifg import identify_functional_groups
 from itertools import combinations
 import re
+from collections import deque
 
 lg = rdkit.RDLogger.logger() 
 lg.setLevel(rdkit.RDLogger.CRITICAL)
@@ -490,72 +491,3 @@ def cleavage(dictionary, alpha = 0.7, beta = 0.99, isomericSmiles=True):
         _cleavage2(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
         white_list = list(set(white_list))
         new_size = len(dictionary)
-
-# def cleavage(dictionary, MapNum=False, alpha = 0.7, beta = 0.99):
-#     '''Given a initial vocabulary (As dictionary of occurance), execute further cleavage under some
-#     limitations. Alpha: words (fragments) have less than top alpha (percentage) occurances would be 
-#     broken. Beta: words (fragments) have less than beta (percentage) occurances of all functional
-#     groups would be broken. Beta would be ignore if alpha is given.'''
-#     patt = r'[C,H][0-9]{2}[0,-1,1,4]{0,1}'
-#     if not alpha:
-#         total_num = sum([dictionary[x] for x in dictionary])
-#         rare = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
-#     else:
-#         qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
-#         rare = [x for x in dictionary if dictionary[x]<=qua]
-#     for smi in rare:
-#         if re.match(patt, smi): continue
-#         num = dictionary[smi]
-#         del dictionary[smi]
-#         mol = smiles2mol(smi)
-#         try:
-#             fgs = identify_functional_groups(mol, MapNum=MapNum, mergeAtom=False)
-#         except RecursionError:
-#             continue
-#         frags = [x.atoms for x in fgs]
-#         rest_atom = set(range(mol.GetNumAtoms())).difference([num for ids in fgs for num in ids.atomIds])
-#         rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
-#         CHs = []
-#         passed = {}
-#         for bond in mol.GetBonds():
-#             atom1 = bond.GetBeginAtom()
-#             atom2 = bond.GetEndAtom()
-#             if set((atom1.GetIdx(), atom2.GetIdx()))<rest_atom:
-#                 if atom1.GetIdx() not in passed:
-#                     passed[atom1.GetIdx()] = rwmol.AddAtom(atom1)
-#                 if atom2.GetIdx() not in passed:
-#                     passed[atom2.GetIdx()] = rwmol.AddAtom(atom2)
-#                 order = sp3merge(atom1, atom2)
-#                 if order:
-#                     rwmol.AddBond(passed[atom1.GetIdx()], passed[atom2.GetIdx()], order=bond.GetBondType())
-#         passed_ = {value:key for key, value in passed.items()}
-#         new_mol_index = [tuple(map(lambda t:passed_[t], i)) for i in Chem.GetMolFrags(rwmol)]
-#         for atom in rwmol.GetAtoms():
-#             atom.SetAtomMapNum(0)
-#         for mid, mm in zip(new_mol_index, Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False)):
-#             if mm.GetNumAtoms() == 1 and mm.GetAtomWithIdx(0).GetSymbol() in ['C', 'H']:
-#                 atom = mol.GetAtomWithIdx(mid[0])
-#                 CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
-#             +str(atom.GetFormalCharge()))
-#             else:
-#                 CHs.append(Chem.MolToSmiles(mm))
-#         for fg in frags:
-#             counter(fg, dictionary, increase=num)
-#         for ch in CHs:
-#             counter(ch, dictionary, increase=num)
-#     if not alpha:
-#         total_num = sum([dictionary[x] for x in dictionary])
-#         rare2 = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
-#     else:
-#         qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
-#         rare2 = [x for x in dictionary if dictionary[x]<=qua]
-#     for smi in rare2:
-#         if re.match(patt, smi): continue
-#         num = dictionary[smi]
-#         del dictionary[smi]
-#         mol = smiles2mol(smi)
-#         frags, CHs = breakBond(mol)
-#         for fg in frags:
-#             counter(fg, dictionary, increase=num)
-#         for ch in CHs:
-#             counter(ch, dictionary, increase=num)
