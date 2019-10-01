@@ -12,16 +12,44 @@ patt = r'[C,H][0-9]{2}[0,-1,1]'
 class WordNotFoundError(Exception):
     pass
 
-def standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True):
-    '''Given any smiles representation, return the conanical smiles. Can also remove atom
-    mapped numbers if RemoveMap set to True. (Default: True)'''
-    mol = Chem.MolFromSmiles(smiles, sanitize=False)
+def standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True, Order=False, asMol=False):
+    '''    standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True, Order=False, asMol=False)
+    Parameters
+    ----------
+        smiles: molecular SMILES representations or rdkit.Chem.rdchem.Mol (if asMol=True)
+            Molecule
+        RemoveMap: bool (default: True)
+            Remove atomic mapped number
+        canonical: bool (default: True)
+            Canonicalize
+        isomericSmiles: bool (default=True)
+            Take chirality into considerations.
+        Order: bool (default: False)
+            Return original atom indices based on output SMILES order 
+        asMol: bool (default: False)
+            Input molecule is an rdkit.Chem.rdchem.Mol object
+    Returns
+    -------
+        standize_SMILES: str
+            Standized SMILES based on input rules
+        order: tuple (optional
+            Return only when Order=True'''
+
+    if asMol:
+        mol = smiles.__copy__()
+        Chem.SanitizeMol(mol)
+    else:
+        mol = Chem.MolFromSmiles(smiles, sanitize=False)
     if not RemoveMap:
         return Chem.MolToSmiles(mol, canonical=canonical)
     for atom in mol.GetAtoms():
         atom.SetAtomMapNum(0)
     raw_smiles = Chem.MolToSmiles(mol, canonical=canonical)
-    return Chem.MolToSmiles(Chem.MolFromSmiles(raw_smiles), canonical=canonical, isomericSmiles=isomericSmiles)
+    sanitized = Chem.MolToSmiles(Chem.MolFromSmiles(raw_smiles), canonical=canonical, isomericSmiles=isomericSmiles)
+    if not Order:
+        return sanitized
+    match = mol.GetSubstructMatch(Chem.MolFromSmarts(sanitized))
+    return sanitized, match
 
 def sp3merge(atom1, atom2):
     '''Given two atoms, to see if they can merge into a simple carbon chain.'''
@@ -82,17 +110,23 @@ def AtomListToSubMol(mol, amap, bmap=(), includeConformer=False):
             submol.AddConformer(new_conf)
     return submol
 
-def extractAromatic(m):
+def extractAromatic(mol):
     '''Given a mol object, return the 'aromatic' part in that compound.
     Return: aro: a list of smiles of aromatic structures
     idx: a list of atom indexes corresponding to aromatic structures'''
-    # rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
-    # passed = {}
     def san_check(mole, atom_maps):
         left = set(range(mole.GetNumAtoms())).difference(atom_maps)
         if any([mole.GetAtomWithIdx(i).GetIsAromatic() for i in left]):
             atom_maps.extend([i for i in left if mole.GetAtomWithIdx(i).GetIsAromatic()])
             raise WordNotFoundError
+    def NotSingleBond(mole, atom1, atom2):
+        bond = mole.GetBondBetweenAtoms(atom1.GetIdx(), atom2.GetIdx())
+        if not bond:
+            return False
+        if bond.GetBondType() == Chem.BondType.SINGLE:
+            return False
+        return True
+    m = mol.__copy__()
     aro, new_mol_index = [], []
     amap, bmap=set(), set()
     Chem.Kekulize(m)
@@ -112,19 +146,29 @@ def extractAromatic(m):
         san_check(m, amap)
         Chem.SanitizeMol(rwmol)
     except:
-        rwmol = AtomListToSubMol(m.__copy__(), amap)
+        rwmol = AtomListToSubMol(m, amap)
     for mm in Chem.GetMolFrags(rwmol):
         cur_mol = AtomListToSubMol(rwmol, mm)
         std_smiles = standize(Chem.MolToSmiles(cur_mol))
+        cur_idx = set([amap[i] for i in mm])
         if any([atom.GetIsAromatic() for atom in Chem.MolFromSmiles(std_smiles).GetAtoms()]):
-            aro.append(std_smiles)
-            new_mol_index.append(tuple([amap[i] for i in mm]))
+            updated = cur_idx
         else:
-            cur_idx = [amap[i] for i in mm]
-            updated = list(set([x for group in n_atom for x in group if len(set(cur_idx)&set(group))>3]))
-            cur_mol = AtomListToSubMol(m, updated)
-            aro.append(standize(Chem.MolToSmiles(cur_mol)))
-            new_mol_index.append(tuple(updated))
+            updated = set([x for group in n_atom for x in group if len(set(cur_idx)&set(group))>3])
+        queue = deque(updated)
+        while len(queue) > 0:
+            extra_atom = queue.popleft()
+            EA = m.GetAtomWithIdx(extra_atom)
+            if set([aa.GetIdx() for aa in EA.GetNeighbors() if NotSingleBond(m, EA, aa)])<=updated:
+                continue
+            arm = set([aa.GetIdx() for aa in EA.GetNeighbors() if NotSingleBond(m, EA, aa)]).difference(updated)
+            queue.extend(arm)
+            updated.update(arm)
+        updated = list(updated)
+        cur_mol = AtomListToSubMol(m, updated)
+        aro_fg, order = standize(cur_mol, Order=True, asMol=True)
+        aro.append(aro_fg)
+        new_mol_index.append(tuple(updated[i] for i in order))
     return aro, new_mol_index
 
 def aro_ifg(mol, idx2map=(), mergeAtom=True, isomericSmiles=True):
