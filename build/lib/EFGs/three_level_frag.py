@@ -1,9 +1,12 @@
-import rdkit
-import rdkit.Chem as Chem
-from .ifg import identify_functional_groups
-from itertools import combinations
+import itertools
 import re
 from collections import deque
+from itertools import combinations
+
+import rdkit
+import rdkit.Chem as Chem
+
+from .ifg import identify_functional_groups
 
 lg = rdkit.RDLogger.logger() 
 lg.setLevel(rdkit.RDLogger.CRITICAL)
@@ -111,6 +114,14 @@ def AtomListToSubMol(mol, amap, bmap=(), includeConformer=False):
             submol.AddConformer(new_conf)
     return submol
 
+def merge(iterable):
+    LL = set(itertools.chain.from_iterable(iterable))
+    for ele in LL:
+        components = [x for x in iterable if ele in x]
+        for i in components:
+            iterable.remove(i)
+        iterable += [set(itertools.chain.from_iterable(components))]
+
 def extractAromatic(mol):
     '''Given a mol object, return the 'aromatic' part in that compound.
     Return: aro: a list of smiles of aromatic structures
@@ -148,6 +159,7 @@ def extractAromatic(mol):
         Chem.SanitizeMol(rwmol)
     except:
         rwmol = AtomListToSubMol(m, amap)
+    groups = []
     for mm in Chem.GetMolFrags(rwmol):
         cur_mol = AtomListToSubMol(rwmol, mm)
         std_smiles = standize(Chem.MolToSmiles(cur_mol))
@@ -165,11 +177,14 @@ def extractAromatic(mol):
             arm = set([aa.GetIdx() for aa in EA.GetNeighbors() if NotSingleBond(m, EA, aa)]).difference(updated)
             queue.extend(arm)
             updated.update(arm)
-        updated = list(updated)
-        cur_mol = AtomListToSubMol(m, updated)
+        groups.append(updated)
+    merge(groups)
+    for group in groups:
+        group = list(group)
+        cur_mol = AtomListToSubMol(m, group)
         aro_fg, order = standize(cur_mol, Order=True, asMol=True)
         aro.append(aro_fg)
-        new_mol_index.append(tuple(updated[i] for i in order))
+        new_mol_index.append(tuple(group[i] for i in order))
     return aro, new_mol_index
 
 def aro_ifg(mol, idx2map=(), mergeAtom=True, isomericSmiles=True):

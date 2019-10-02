@@ -27,13 +27,13 @@ Version 0.3.0
 
 Version 0.3.4
 1. standize: accept mol as inputs. Be able to return order if Order=True
-2. Fix bugs with dealing with some molecules.
+2. Fix bugs when dealing with some molecules.
 e.g.:
 N#Cc1cccc2[nH][nH]c3nc(c1)-c23
 O=C=c1cc2ccc3c(c2[nH]1)C=CN=3
 
 Version 0.4.0
-1. extractAromatic: Improved with merge algotirhm. Fix bugs with dealing with some molecules.
+1. extractAromatic: Improved with merge algotirhm. Fix bugs when dealing with some molecules.
 e.g.:
 N#Cc1ccc2c(c1)NC(Cl)=c1c(Cl)ccnc1=N2
 
