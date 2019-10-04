@@ -37,6 +37,11 @@ Version 0.4.0
 e.g.:
 N#Cc1ccc2c(c1)NC(Cl)=c1c(Cl)ccnc1=N2
 
+Version 0.5.0
+1. sandize: Dectect problematic molecules and raise AssertionError if it cannot parsed by GetSubstructMatches()
+e.g.:
+c1cc2c3ccc(n1)c2c3
+
 Usage
 -----
 

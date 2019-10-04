@@ -53,6 +53,8 @@ def standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True, Order=
     if not Order:
         return sanitized
     match = mol.GetSubstructMatch(Chem.MolFromSmarts(sanitized))
+    # rdkit connot identify themselves as substructure of some molecules, e.g.: 'c1cc2c3ccc(n1)c2c3'
+    assert match
     return sanitized, match
 
 def sp3merge(atom1, atom2):
