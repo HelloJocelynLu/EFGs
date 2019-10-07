@@ -49,15 +49,14 @@ def standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True, Order=
     for atom in mol.GetAtoms():
         atom.SetAtomMapNum(0)
     raw_smiles = Chem.MolToSmiles(mol, canonical=canonical)
-    sanitized = Chem.MolToSmiles(Chem.MolFromSmiles(raw_smiles), canonical=canonical, isomericSmiles=isomericSmiles)
+    init_order = list(mol.GetPropsAsDict(True,True)['_smilesAtomOutputOrder'])
+    # RDKit bug: sometimes only one canonicalization is not enough, e.g.: 'Nc1cc2c3ccc(n1)c2c3' when asMol
+    mol2 = Chem.MolFromSmiles(raw_smiles)
+    sanitized = Chem.MolToSmiles(mol2, canonical=canonical, isomericSmiles=isomericSmiles)
+    next_order = list(mol2.GetPropsAsDict(True,True)['_smilesAtomOutputOrder'])
     if not Order:
         return sanitized
-    match = mol.GetSubstructMatch(Chem.MolFromSmarts(sanitized))
-    if not match:
-        Chem.SanitizeMol(mol)
-        match = mol.GetSubstructMatch(Chem.MolFromSmarts(sanitized))
-    # rdkit connot identify themselves as substructure of some molecules, e.g.: 'c1cc2c3ccc(n1)c2c3'
-    assert match
+    match = tuple(init_order[i] for i in next_order)
     return sanitized, match
 
 def sp3merge(atom1, atom2):
@@ -187,12 +186,8 @@ def extractAromatic(mol):
     for group in groups:
         group = list(group)
         cur_mol = AtomListToSubMol(m, group)
-        try:
-            aro_fg, order = standize(cur_mol, Order=True, asMol=True)
-        # The  cooresponding order needs to be fixed if AssertionError was caught
-        except AssertionError:
-            aro_fg = standize(cur_mol, asMol=True)
-            order = range(len(group))
+        Chem.SanitizeMol(cur_mol)
+        aro_fg, order = standize(cur_mol, Order=True, asMol=True)
         aro.append(aro_fg)
         new_mol_index.append(tuple(group[i] for i in order))
     return aro, new_mol_index
