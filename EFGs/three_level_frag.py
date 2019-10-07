@@ -12,6 +12,7 @@ lg = rdkit.RDLogger.logger()
 lg.setLevel(rdkit.RDLogger.CRITICAL)
 
 patt = r'[C,H][0-9]{2}[0,-1,1]'
+IsH010 = lambda a: (a.GetSymbol()=='H' and a.GetDegree()==1 and a.GetFormalCharge()==0)
 
 class WordNotFoundError(Exception):
     pass
@@ -186,7 +187,12 @@ def extractAromatic(mol):
     for group in groups:
         group = list(group)
         cur_mol = AtomListToSubMol(m, group)
-        aro_fg, order = standize(cur_mol, Order=True, asMol=True)
+        try:
+            aro_fg, order = standize(cur_mol, Order=True, asMol=True)
+        # The  cooresponding order needs to be fixed if AssertionError was caught
+        except AssertionError:
+            aro_fg = standize(cur_mol, asMol=True)
+            order = range(len(group))
         aro.append(aro_fg)
         new_mol_index.append(tuple(group[i] for i in order))
     return aro, new_mol_index
@@ -242,7 +248,7 @@ def breakBond(mol, MapNum=False, returnidx=False):
     mapped_CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
     return [Chem.MolToSmiles(x) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
 
-def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, extra_backup={}):
+def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, extra_backup={}):
     '''
     raw_mol: rdkit mol object to be decompose
     # ExplicitHs: Use explicit Hs. (Default=False) 
@@ -261,13 +267,14 @@ def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_include
     and CHs (if returnidx=True)
     '''
     mol = raw_mol.__copy__()
-    ExplicitHs = any([atom.GetSymbol()=='H' for atom in mol.GetAtoms()])
+    # ExplicitHs = any([atom.GetSymbol()=='H' for atom in mol.GetAtoms()])
     CHs = []
     CHs_idx = []
     idx2map = {}
     # Primary decomposition
     if ExplicitHs:
         n_atom0 = mol.GetNumAtoms()
+        non_H = [atom.GetIdx() for atom in mol.GetAtoms() if not IsH010(atom)]
         mol = Chem.RemoveHs(mol)
     for atom in mol.GetAtoms():
         atom.SetAtomMapNum(atom.GetIdx())
@@ -390,7 +397,9 @@ def mol2frag(raw_mol, returnidx=False, toEnd=False, vocabulary=(), extra_include
                     except KeyError:
                         extra_backup['Non-aromatic']={extra}
     if ExplicitHs:
-        for hid in range(n_atom, n_atom0):
+        H_s = set(range(n_atom0)).difference(non_H)
+        CHs_idx = [tuple(map(lambda t:non_H[t], i)) for i in CHs_idx]
+        for hid in H_s:
             CHs.append('H010')
             CHs_idx.append((hid,))
     if not returnidx:
