@@ -487,6 +487,12 @@ def _cleavage2(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=
         num = dictionary[smi]
         del dictionary[smi]
         mol = Chem.MolFromSmiles(smi)
+        temp_aro, temp_aro_idx, temp_frags = aro_ifg(mol, mergeAtom=False, isomericSmiles=isomericSmiles)
+        # The whole molecule is an aromatic species
+        if not temp_frags:
+            White_list.append(smi)
+            counter(smi, dictionary, increase=num)
+            continue
         a, b, c, d = breakBond(mol, returnidx=True)
         if any([Chem.MolFromSmiles(x)==None for x in a]):
             White_list.append(smi)
