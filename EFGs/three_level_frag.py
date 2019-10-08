@@ -171,7 +171,7 @@ def extractAromatic(mol):
         if any([atom.GetIsAromatic() for atom in Chem.MolFromSmiles(std_smiles).GetAtoms()]):
             updated = cur_idx
         else:
-            updated = set([x for group in n_atom for x in group if len(set(cur_idx)&set(group))>3])
+            updated = set([x for group in n_atom for x in group if len(set(cur_idx)&set(group))>2])
         queue = deque(updated)
         while len(queue) > 0:
             extra_atom = queue.popleft()
