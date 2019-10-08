@@ -238,10 +238,10 @@ def breakBond(mol, MapNum=False, returnidx=False):
             if returnidx:
                 CHs_idx.append(frag)
     if not returnidx:
-        return [Chem.MolToSmiles(x) for x in fragmols], plain
+        return [standize(x, asMol=True) for x in fragmols], plain
     mapped_frag_idx = [tuple(map(lambda x: idx2map[x],group)) for group in frags]
     mapped_CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
-    return [Chem.MolToSmiles(x) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
+    return [standize(x, asMol=True) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
 
 def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, extra_backup={}):
     '''
