@@ -1,5 +1,6 @@
 import itertools
 import re
+import argparse
 from collections import deque
 from itertools import combinations
 
@@ -320,12 +321,14 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
                 for fg in extra:
                     if fg in White_list: continue
                     submol = smiles2mol(fg.atoms, fg.atomIds)
-                    a, b, c, d = breakBond(submol, MapNum=True, returnidx=True)
-                    # Fragments should be valid
-                    if all([Chem.MolFromSmiles(x)!=None for x in a]):
+                    try:
+                        a, b, c, d = breakBond(submol, MapNum=True, returnidx=True)
                         fgs.remove(fg)
                         more_frag.extend(a)
                         frag_idx.extend(c)
+                    # Fragments should be valid
+                    except argparse.ArgumentError:
+                        pass
     fgs_atoms = [num for ids in fgs for num in ids.atomIds] + [num2 for tuples in frag_idx for num2 in tuples]
     fgs_tuple = [ids.atomIds for ids in fgs] + [tuples for tuples in frag_idx]
     n_atom = mol.GetNumAtoms()
@@ -493,11 +496,14 @@ def _cleavage2(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=
             White_list.append(smi)
             counter(smi, dictionary, increase=num)
             continue
-        a, b, c, d = breakBond(mol, returnidx=True)
-        if any([Chem.MolFromSmiles(x)==None for x in a]):
+        try:
+            a, b, c, d = breakBond(mol, returnidx=True)
+            # Fragments should be valid
             White_list.append(smi)
             counter(smi, dictionary, increase=num)
             continue
+        except argparse.ArgumentError:
+            pass
         for fg in a:
             counter(fg, dictionary, increase=num)
         for ch in b:
