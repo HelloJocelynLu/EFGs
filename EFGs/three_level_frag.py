@@ -14,6 +14,7 @@ lg.setLevel(rdkit.RDLogger.CRITICAL)
 
 patt = r'[C,H][0-9]{2}[0,-1,1]'
 IsH010 = lambda a: (a.GetSymbol()=='H' and a.GetDegree()==1 and a.GetFormalCharge()==0)
+IsAromatic = lambda a: a.GetIsAromatic()
 
 class WordNotFoundError(Exception):
     pass
@@ -168,9 +169,10 @@ def extractAromatic(mol):
     for mm in Chem.GetMolFrags(rwmol):
         cur_mol = AtomListToSubMol(rwmol, mm)
         std_smiles = standize(Chem.MolToSmiles(cur_mol))
-        cur_idx = set([amap[i] for i in mm])
-        if any([atom.GetIsAromatic() for atom in Chem.MolFromSmiles(std_smiles).GetAtoms()]):
-            updated = cur_idx
+        cur_idx = [amap[i] for i in mm]
+        if any([atom.GetIsAromatic() for atom in Chem.MolFromSmiles(std_smiles).GetAtoms()]) and \
+            [IsAromatic(mol.GetAtomWithIdx(i)) for i in cur_idx] == [IsAromatic(rwmol.GetAtomWithIdx(i)) for i in mm]:
+            updated = set(cur_idx)
         else:
             updated = set([x for group in n_atom for x in group if len(set(cur_idx)&set(group))>2])
         queue = deque(updated)
