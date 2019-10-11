@@ -47,6 +47,10 @@ Version 0.6.0
 e.g.:
 Nc1cc2c3ccc(n1)c2c3
 
+
+Version 0.7.0
+1. mol2frag: fix explicit Hs problems in some molecules with H unremovable
+
 Usage
 -----
 

@@ -270,13 +270,12 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
     CHs_idx = []
     idx2map = {}
     # Primary decomposition
-    if ExplicitHs:
-        n_atom0 = mol.GetNumAtoms()
-        non_H = [atom.GetIdx() for atom in mol.GetAtoms() if not IsH010(atom)]
-        mol = Chem.RemoveHs(mol)
     for atom in mol.GetAtoms():
         atom.SetAtomMapNum(atom.GetIdx())
         idx2map[atom.GetIdx()]=atom.GetAtomMapNum()
+    if ExplicitHs:
+        mol = Chem.RemoveHs(mol)
+        non_H = [atom.GetAtomMapNum() for atom in mol.GetAtoms()]
     more_frag, frag_idx, fgs = aro_ifg(mol, idx2map=idx2map, isomericSmiles=isomericSmiles)
     # Further decomposition
     if toEnd:
@@ -399,6 +398,7 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
     if ExplicitHs:
         H_s = set(range(n_atom0)).difference(non_H)
         CHs_idx = [tuple(map(lambda t:non_H[t], i)) for i in CHs_idx]
+        fgs_tuple = [tuple(map(lambda t:non_H[t], i)) for i in fgs_tuple]
         for hid in H_s:
             CHs.append('H010')
             CHs_idx.append((hid,))
