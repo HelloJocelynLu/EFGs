@@ -246,7 +246,7 @@ def breakBond(mol, MapNum=False, returnidx=False):
     mapped_CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
     return [standize(x, asMol=True) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
 
-def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, extra_backup={}):
+def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, UnknownIdentity=False, extra_backup={}):
     '''
     raw_mol: rdkit mol object to be decompose
     # ExplicitHs: Use explicit Hs. (Default=False) 
@@ -373,8 +373,11 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
         else:
             extras = set(nonCHs+CHs).difference(vocabulary)
             for extra in extras:
+                append_context = ''
+                if UnknownIdentity:
+                    append_context = '.'+extra
                 if re.match(patt, extra):
-                    CHs = ['Non-aromatic' if x==extra else x for x in CHs]
+                    CHs = ['Non-aromatic'+append_context if x==extra else x for x in CHs]
                     try:
                         extra_backup['Non-aromatic'].add(extra)
                     except KeyError:
@@ -382,15 +385,15 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
                     continue
                 sub_mol = Chem.MolFromSmiles(extra)
                 if any([atom.GetIsAromatic() for atom in sub_mol.GetAtoms()]):
-                    nonCHs = ['Aromatic' if x==extra else x for x in nonCHs]
-                    CHs = ['Aromatic' if x==extra else x for x in CHs]
+                    nonCHs = ['Aromatic'+append_context if x==extra else x for x in nonCHs]
+                    CHs = ['Aromatic'+append_context if x==extra else x for x in CHs]
                     try:
                         extra_backup['Aromatic'].add(extra)
                     except KeyError:
                         extra_backup['Aromatic']={extra}
                 else:
-                    nonCHs = ['Non-aromatic' if x==extra else x for x in nonCHs]
-                    CHs = ['Non-aromatic' if x==extra else x for x in CHs]
+                    nonCHs = ['Non-aromatic'+append_context if x==extra else x for x in nonCHs]
+                    CHs = ['Non-aromatic'+append_context if x==extra else x for x in CHs]
                     try:
                         extra_backup['Non-aromatic'].add(extra)
                     except KeyError:
