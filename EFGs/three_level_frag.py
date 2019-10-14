@@ -396,7 +396,7 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
                     except KeyError:
                         extra_backup['Non-aromatic']={extra}
     if ExplicitHs:
-        H_s = set(range(n_atom0)).difference(non_H)
+        H_s = set(range(len(idx2map))).difference(non_H)
         CHs_idx = [tuple(map(lambda t:non_H[t], i)) for i in CHs_idx]
         fgs_tuple = [tuple(map(lambda t:non_H[t], i)) for i in fgs_tuple]
         for hid in H_s:
