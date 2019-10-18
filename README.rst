@@ -51,6 +51,10 @@ Nc1cc2c3ccc(n1)c2c3
 Version 0.7.0
 1. mol2frag: fix explicit Hs problems in some molecules with H unremovable
 
+Version 0.8.0
+1. Support three way to treat Hs:
+TreatHs: The way to treat Hs. Default: 'ignore' (Other options: 'separate': treat Hs separately (H010); 'include': merged to neighboring EFGs) 
+Here 'ignore' means implicit Hs default by rdkit
 Usage
 -----
 

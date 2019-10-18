@@ -120,13 +120,13 @@ def AtomListToSubMol(mol, amap, bmap=(), includeConformer=False):
             submol.AddConformer(new_conf)
     return submol
 
-def merge(iterable):
+def merge(iterable, style=set):
     LL = set(itertools.chain.from_iterable(iterable))
     for ele in LL:
         components = [x for x in iterable if ele in x]
         for i in components:
             iterable.remove(i)
-        iterable += [set(itertools.chain.from_iterable(components))]
+        iterable += [style(set(itertools.chain.from_iterable(components)))]
 
 def extractAromatic(mol):
     '''Given a mol object, return the 'aromatic' part in that compound.
@@ -145,6 +145,8 @@ def extractAromatic(mol):
             return False
         return True
     m = mol.__copy__()
+    for atom in m.GetAtoms():
+        atom.SetAtomMapNum(0)
     aro, new_mol_index = [], []
     amap, bmap=set(), set()
     Chem.Kekulize(m)
@@ -186,12 +188,13 @@ def extractAromatic(mol):
             updated.update(arm)
         groups.append(updated)
     merge(groups)
+    Chem.SanitizeMol(m)
     for group in groups:
         group = list(group)
         cur_mol = AtomListToSubMol(m, group)
         Chem.SanitizeMol(cur_mol)
         aro_fg, order = standize(cur_mol, Order=True, asMol=True)
-        aro.append(aro_fg)
+        aro.append(standize(aro_fg))
         new_mol_index.append(tuple(group[i] for i in order))
     return aro, new_mol_index
 
@@ -246,10 +249,10 @@ def breakBond(mol, MapNum=False, returnidx=False):
     mapped_CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
     return [standize(x, asMol=True) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
 
-def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, UnknownIdentity=False, extra_backup={}):
+def mol2frag(raw_mol, TreatHs='ignore', returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, UnknownIdentity=False, extra_backup={}):
     '''
     raw_mol: rdkit mol object to be decompose
-    # ExplicitHs: Use explicit Hs. (Default=False) 
+    TreatHs: The way to treat Hs. Default: 'ignore' (Other options: 'separate': treat Hs separately; 'include': merged to neighboring EFGs) 
     returnidx: Whether cooresponding atom index of EFGs shouls be returned. (Default=False)
     toEnd: Whether to decompose to the end. (Default=False, will only do 1-step decomposition)
     vocabulary: A list of smiles which contains EFGs. This argument would be ignore if 
@@ -265,7 +268,6 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
     and CHs (if returnidx=True)
     '''
     mol = raw_mol.__copy__()
-    # ExplicitHs = any([atom.GetSymbol()=='H' for atom in mol.GetAtoms()])
     CHs = []
     CHs_idx = []
     idx2map = {}
@@ -273,7 +275,14 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
     for atom in mol.GetAtoms():
         atom.SetAtomMapNum(atom.GetIdx())
         idx2map[atom.GetIdx()]=atom.GetAtomMapNum()
-    if ExplicitHs:
+    if TreatHs != 'ignore':
+        if TreatHs == 'include':
+            h_bond = []
+            for bond in mol.GetBonds():
+                atom1 = bond.GetBeginAtom()
+                atom2 = bond.GetEndAtom()
+                if any([atom.GetSymbol()=='H' for atom in (atom1, atom2)]):
+                    h_bond.append((atom1.GetIdx(), atom2.GetIdx()))
         mol = Chem.RemoveHs(mol)
         non_H = [atom.GetAtomMapNum() for atom in mol.GetAtoms()]
     more_frag, frag_idx, fgs = aro_ifg(mol, idx2map=idx2map, isomericSmiles=isomericSmiles)
@@ -335,37 +344,25 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
     n_atom = mol.GetNumAtoms()
     # to see if we have any atoms left behind
     rest_atom = {i for i in range(n_atom)}.difference(fgs_atoms)
-    rwmol = Chem.RWMol(Chem.MolFromSmiles(''))
-    passed = {}
+    sp3_link = set()
     for bond in mol.GetBonds():
         atom1 = bond.GetBeginAtom()
         atom2 = bond.GetEndAtom()
-        if set((atom1.GetIdx(), atom2.GetIdx()))<=rest_atom:
-            if atom1.GetIdx() not in passed:
-                passed[atom1.GetIdx()] = rwmol.AddAtom(atom1)
-            if atom2.GetIdx() not in passed:
-                passed[atom2.GetIdx()] = rwmol.AddAtom(atom2)
-            order = sp3merge(atom1, atom2)
-            if order:
-                rwmol.AddBond(passed[atom1.GetIdx()], passed[atom2.GetIdx()], order=bond.GetBondType())
-    passed_ = {value:key for key, value in passed.items()}
-    new_mol_index = [tuple(map(lambda t:passed_[t], i)) for i in Chem.GetMolFrags(rwmol)]
-    CHs_idx.extend(new_mol_index)
-    for atom in rwmol.GetAtoms():
-        atom.SetAtomMapNum(0)
-    for mid, mm in zip(new_mol_index, Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False)):
+        if set((atom1.GetIdx(), atom2.GetIdx()))<=rest_atom and sp3merge(atom1, atom2):
+            sp3_link.add(bond.GetIdx())
+    if not sp3_link: sp3_link=[mol.GetNumBonds()]
+    # To avoid empty sp3_link ==> all bonds, set an impossible value
+    rwmol = AtomListToSubMol(mol, rest_atom, sp3_link)
+    for mm in Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False):
         if mm.GetNumAtoms() == 1 and mm.GetAtomWithIdx(0).GetSymbol() in ['C', 'H']:
-            atom = mol.GetAtomWithIdx(mid[0])
+            atom = mol.GetAtomWithIdx(mm.GetAtomWithIdx(0).GetAtomMapNum())
+            if TreatHs == 'include' and IsH010(atom): continue
             CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
         +str(atom.GetFormalCharge()))
+            CHs_idx.append((atom.GetAtomMapNum(),))
         else:
-            CHs.append(Chem.MolToSmiles(mm))
-    rest_atom = set(rest_atom).difference(passed)
-    for idx in rest_atom:
-        atom = mol.GetAtomWithIdx(idx)
-        CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
-        +str(atom.GetFormalCharge()))
-        if returnidx: CHs_idx.append((idx,))
+            CHs_idx.append(tuple([atom.GetAtomMapNum() for atom in mm.GetAtoms()]))
+            CHs.append(standize(mm, asMol=True))
     nonCHs=[fg.atoms for fg in fgs]+more_frag
     if not set(nonCHs+CHs)<=set(vocabulary) and len(vocabulary)>0:
         if not extra_included:
@@ -398,10 +395,27 @@ def mol2frag(raw_mol, ExplicitHs=False, returnidx=False, toEnd=False, vocabulary
                         extra_backup['Non-aromatic'].add(extra)
                     except KeyError:
                         extra_backup['Non-aromatic']={extra}
-    if ExplicitHs:
+    if TreatHs !='ignore':
         H_s = set(range(len(idx2map))).difference(non_H)
         CHs_idx = [tuple(map(lambda t:non_H[t], i)) for i in CHs_idx]
         fgs_tuple = [tuple(map(lambda t:non_H[t], i)) for i in fgs_tuple]
+        if TreatHs == 'include':
+            for pos in range(len(CHs_idx)):
+                cur_group = set(CHs_idx[pos])
+                for bond in list(h_bond):
+                    if cur_group&set(bond):
+                        cur_group.update(bond)
+                        h_bond.remove(bond)
+                CHs_idx[pos] = tuple(cur_group)
+            for pos in range(len(fgs_tuple)):
+                cur_group = set(fgs_tuple[pos])
+                for bond in list(h_bond):
+                    if cur_group&set(bond):
+                        cur_group.update(bond)
+                        h_bond.remove(bond)
+                fgs_tuple[pos] = tuple(cur_group)
+            H_s = set(itertools.chain.from_iterable(h_bond))
+            # H_s is not empty only for H2
         for hid in H_s:
             CHs.append('H010')
             CHs_idx.append((hid,))
