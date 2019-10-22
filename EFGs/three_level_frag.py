@@ -189,6 +189,7 @@ def extractAromatic(mol):
         groups.append(updated)
     merge(groups)
     Chem.SanitizeMol(m)
+    Chem.Kekulize(m)
     for group in groups:
         group = list(group)
         cur_mol = AtomListToSubMol(m, group)
@@ -212,42 +213,44 @@ def aro_ifg(mol, idx2map=(), mergeAtom=True, isomericSmiles=True):
     fgs = identify_functional_groups(mol, MapNum=UseMap, masked=set(masked), mergeAtom=mergeAtom, isomericSmiles=isomericSmiles)
     return aro, aro_idx, fgs
 
-def breakBond(mol, MapNum=False, returnidx=False):
+def breakBond(m, MapNum=False, returnidx=False):
     '''Given a mol, this function would break all the single bond in the molecule,
     and then return (fragments smiles, Carbons/hydrogens Types)'''
-    emol = Chem.RWMol(mol)
-    plain = []
+    mol = m.__copy__()
     idx2map = {}
-    CHs_idx = []
-    for atom in emol.GetAtoms():
-        if not MapNum:
-            atom.SetAtomMapNum(atom.GetIdx())
-        idx2map[atom.GetIdx()]=atom.GetAtomMapNum()
-        atom.SetAtomMapNum(0)
+    CHs, CHs_idx, frags, frag_idx = [], [], [], []
+    for atom in mol.GetAtoms():
+        if MapNum:
+            idx2map[atom.GetIdx()]=atom.GetAtomMapNum()
+        atom.SetAtomMapNum(atom.GetIdx())
+    no_link = set()
     for bond in mol.GetBonds():
         if bond.GetBondTypeAsDouble() == 1.0:
             atom1 = bond.GetBeginAtom()
             atom2 = bond.GetEndAtom()
             if sp3merge(atom1, atom2):
                 continue
-            emol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
-    edited = emol.GetMol()
-    frags = list(Chem.GetMolFrags(edited, asMols=False, sanitizeFrags=False))
-    fragmols = list(Chem.GetMolFrags(edited, asMols=True, sanitizeFrags=False))
-    idx_copy, mols_copy = list(frags), list(fragmols)
-    for frag, fragmol in zip(idx_copy, mols_copy):
-        if len(frag)==1 and mol.GetAtomWithIdx(frag[0]).GetSymbol() in ['C', 'H']:
-            atom = mol.GetAtomWithIdx(frag[0])
-            plain.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())+str(atom.GetFormalCharge()))
-            frags.remove(frag)
-            fragmols.remove(fragmol)
-            if returnidx:
-                CHs_idx.append(frag)
+            no_link.add(bond.GetIdx())
+    links = set(range(mol.GetNumBonds())).difference(no_link)
+    if not links: links=[mol.GetNumBonds()]
+    # To avoid empty sp3_link ==> all bonds, set an impossible value
+    rwmol = AtomListToSubMol(mol, range(mol.GetNumAtoms()), links)
+    for mm in Chem.GetMolFrags(rwmol, asMols=True, sanitizeFrags=False):
+        if mm.GetNumAtoms() == 1 and mm.GetAtomWithIdx(0).GetSymbol() in ['C', 'H']:
+            atom = mol.GetAtomWithIdx(mm.GetAtomWithIdx(0).GetAtomMapNum())
+            CHs.append(atom.GetSymbol()+str(int(atom.GetIsAromatic()))+str(atom.GetDegree())
+        +str(atom.GetFormalCharge()))
+            CHs_idx.append((atom.GetAtomMapNum(),))
+        else:
+            mm_renum, order = standize(mm, asMol=True, Order=True)
+            frag_idx.append(tuple([mm.GetAtomWithIdx(i).GetAtomMapNum() for i in order]))
+            frags.append(mm_renum)
     if not returnidx:
-        return [standize(x, asMol=True) for x in fragmols], plain
-    mapped_frag_idx = [tuple(map(lambda x: idx2map[x],group)) for group in frags]
-    mapped_CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
-    return [standize(x, asMol=True) for x in fragmols], plain, mapped_frag_idx, mapped_CHs_idx
+        return frags, CHs
+    if idx2map:
+        frag_idx = [tuple(map(lambda x: idx2map[x],group)) for group in frag_idx]
+        CHs_idx = [tuple(map(lambda x: idx2map[x],group)) for group in CHs_idx]
+    return frags, CHs, frag_idx, CHs_idx
 
 def mol2frag(raw_mol, TreatHs='ignore', returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, UnknownIdentity=False, extra_backup={}):
     '''
@@ -361,8 +364,9 @@ def mol2frag(raw_mol, TreatHs='ignore', returnidx=False, toEnd=False, vocabulary
         +str(atom.GetFormalCharge()))
             CHs_idx.append((atom.GetAtomMapNum(),))
         else:
-            CHs_idx.append(tuple([atom.GetAtomMapNum() for atom in mm.GetAtoms()]))
-            CHs.append(standize(mm, asMol=True))
+            mm_renum, order = standize(mm, asMol=True, Order=True)
+            CHs_idx.append(tuple([mm.GetAtomWithIdx(i).GetAtomMapNum() for i in order]))
+            CHs.append(mm_renum)
     nonCHs=[fg.atoms for fg in fgs]+more_frag
     if not set(nonCHs+CHs)<=set(vocabulary) and len(vocabulary)>0:
         if not extra_included:
