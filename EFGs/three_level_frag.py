@@ -444,14 +444,10 @@ def smiles2mol(smiles, maplist=None):
             atom.SetAtomMapNum(maplist[i])
     return mol
 
-def _cleavage1(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=True):
+def _cleavage1(dictionary, White_list, alpha = 0.7, isomericSmiles=True):
     patt = r'[C,H][0-9]{2}[0,-1,1,4]{0,1}'
-    if not alpha:
-        total_num = sum([dictionary[x] for x in dictionary])
-        rare = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
-    else:
-        qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
-        rare = [x for x in dictionary if dictionary[x]<=qua]
+    qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
+    rare = [x for x in dictionary if dictionary[x]<=qua]
     for smi in rare:
         if re.match(patt, smi) or (smi in White_list): continue
         num = dictionary[smi]
@@ -500,14 +496,10 @@ def _cleavage1(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=
         for ch in CHs:
             counter(ch, dictionary, increase=num)
             
-def _cleavage2(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=True):
+def _cleavage2(dictionary, White_list, alpha = 0.7, isomericSmiles=True):
     patt = r'[C,H][0-9]{2}[0,-1,1,4]{0,1}'
-    if not alpha:
-        total_num = sum([dictionary[x] for x in dictionary])
-        rare = [x for x in dictionary if dictionary[x]<=(1-beta)*total_num]
-    else:
-        qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
-        rare = [x for x in dictionary if dictionary[x]<=qua]
+    qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
+    rare = [x for x in dictionary if dictionary[x]<=qua]
     for smi in rare:
         if re.match(patt, smi) or (smi in White_list): continue
         num = dictionary[smi]
@@ -532,20 +524,25 @@ def _cleavage2(dictionary, White_list, alpha = 0.7, beta = 0.99, isomericSmiles=
         for ch in b:
             counter(ch, dictionary, increase=num)
 
-def cleavage(dictionary, alpha = 0.7, beta = 0.99, isomericSmiles=True):
+def cleavage(dictionary, alpha = 0.7, isomericSmiles=True):
     old_size = len(dictionary)
     white_list=[]
-    _cleavage1(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+    _cleavage1(dictionary, white_list, alpha = alpha, isomericSmiles=isomericSmiles)
     new_size = len(dictionary)
     while old_size-new_size>0:
         old_size = len(dictionary)
-        _cleavage1(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+        _cleavage1(dictionary, white_list, alpha = alpha, isomericSmiles=isomericSmiles)
         white_list = list(set(white_list))
         new_size = len(dictionary)
-    _cleavage2(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+    _cleavage2(dictionary, white_list, alpha = alpha, isomericSmiles=isomericSmiles)
     new_size = len(dictionary)
     while old_size-new_size>0:
         old_size = len(dictionary)
-        _cleavage2(dictionary, white_list, alpha = alpha, beta = beta, isomericSmiles=isomericSmiles)
+        _cleavage2(dictionary, white_list, alpha = alpha, isomericSmiles=isomericSmiles)
         white_list = list(set(white_list))
         new_size = len(dictionary)
+    # To remove rare EFGs
+    qua = sorted([dictionary[x] for x in dictionary])[::-1][int(alpha*len(dictionary))-1]
+    rare = [x for x in dictionary if dictionary[x]<=qua]
+    for x in rare:
+        del dictionary[x]
