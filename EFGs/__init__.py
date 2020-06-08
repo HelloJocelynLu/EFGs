@@ -3,7 +3,7 @@
 from .three_level_frag import cleavage, AtomListToSubMol, standize, mol2frag, WordNotFoundError, counter
 from .ifg import identify_functional_groups
 
-__version__ = '0.8.2'
+__version__ = '0.8.3'
 __author__ = 'Jocelyn Lu <jl8570@nyu.edu>'
 __all__ = [
         'cleavage',

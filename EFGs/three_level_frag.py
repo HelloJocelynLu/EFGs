@@ -42,6 +42,8 @@ def standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True, Order=
         order: tuple (optional)
             Return only when Order=True'''
 
+    if not smiles:
+        return ''
     if asMol:
         mol = smiles.__copy__()
     else:
