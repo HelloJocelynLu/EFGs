@@ -48,20 +48,25 @@ def standize(smiles, RemoveMap=True, canonical=True, isomericSmiles=True, Order=
         mol = smiles.__copy__()
     else:
         mol = Chem.MolFromSmiles(smiles, sanitize=False)
+    if not mol:
+        return ''
     if not RemoveMap:
         return Chem.MolToSmiles(mol, canonical=canonical)
-    for atom in mol.GetAtoms():
-        atom.SetAtomMapNum(0)
-    raw_smiles = Chem.MolToSmiles(mol, canonical=canonical)
-    init_order = list(mol.GetPropsAsDict(True,True)['_smilesAtomOutputOrder'])
-    # RDKit bug: sometimes only one canonicalization is not enough, e.g.: 'Nc1cc2c3ccc(n1)c2c3' when asMol
-    mol2 = Chem.MolFromSmiles(raw_smiles)
-    sanitized = Chem.MolToSmiles(mol2, canonical=canonical, isomericSmiles=isomericSmiles)
-    next_order = list(mol2.GetPropsAsDict(True,True)['_smilesAtomOutputOrder'])
-    if not Order:
-        return sanitized
-    match = tuple(init_order[i] for i in next_order)
-    return sanitized, match
+    try:
+        for atom in mol.GetAtoms():
+            atom.SetAtomMapNum(0)
+        raw_smiles = Chem.MolToSmiles(mol, canonical=canonical)
+        init_order = list(mol.GetPropsAsDict(True,True)['_smilesAtomOutputOrder'])
+        # RDKit bug: sometimes only one canonicalization is not enough, e.g.: 'Nc1cc2c3ccc(n1)c2c3' when asMol
+        mol2 = Chem.MolFromSmiles(raw_smiles)
+        sanitized = Chem.MolToSmiles(mol2, canonical=canonical, isomericSmiles=isomericSmiles)
+        next_order = list(mol2.GetPropsAsDict(True,True)['_smilesAtomOutputOrder'])
+        if not Order:
+            return sanitized
+        match = tuple(init_order[i] for i in next_order)
+        return sanitized, match
+    except:
+        return ''
 
 def sp3merge(atom1, atom2):
     '''Given two atoms, to see if they can merge into a simple carbon chain.'''

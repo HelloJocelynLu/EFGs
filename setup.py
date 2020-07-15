@@ -15,7 +15,7 @@ def read(filename):
 
 setup(
     name="EFGs",
-    version="0.8.3",
+    version="0.8.4",
     url="https://github.com/HelloJocelynLu/EFGs",
     license='MIT',
 
