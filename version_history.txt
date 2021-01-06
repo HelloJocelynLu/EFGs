@@ -1,0 +1,45 @@
+Version 0.1.0
+Original Version
+
+Version 0.2.0
+1. Identify functional group: atomID and typeID are arranged based on index order in atom and type.
+2. mol2frag, modified the code (remove the calling of GetSubstructMatches)
+3. mol2frag, fix some substructure decomposition with 'white list'
+
+Version 0.3.0
+1. mol2frag: And new argument: isomericSmiles=True
+2. mol2frag: Fix the bug that got wrong index (indexes changed even if canonical is set to False) when deal with aromatic complex molecules 
+3. cleavage, fix the iterative algorithm
+
+Version 0.3.4
+1. standize: accept mol as inputs. Be able to return order if Order=True
+2. Fix bugs when dealing with some molecules.
+e.g.:
+N#Cc1cccc2[nH][nH]c3nc(c1)-c23
+O=C=c1cc2ccc3c(c2[nH]1)C=CN=3
+
+Version 0.4.0
+1. extractAromatic: Improved with merge algotirhm. Fix bugs when dealing with some molecules.
+e.g.:
+N#Cc1ccc2c(c1)NC(Cl)=c1c(Cl)ccnc1=N2
+
+Version 0.5.0
+1. sandize: Dectect problematic molecules and raise AssertionError if it cannot parsed by GetSubstructMatches()
+e.g.:
+Nc1cc2c3ccc(n1)c2c3
+
+Version 0.6.0
+1. sandize: fix possible AssertionError
+e.g.:
+Nc1cc2c3ccc(n1)c2c3
+
+
+Version 0.7.0
+1. mol2frag: fix explicit Hs problems in some molecules with H unremovable
+
+Version 0.8.0
+1. Support three way to treat Hs:
+TreatHs: The way to treat Hs. Default: 'ignore' (Other options: 'separate': treat Hs separately (H010); 'include': merged to neighboring EFGs) 
+Here 'ignore' means implicit Hs (default by rdkit)
+
+TODO: improve efficiency

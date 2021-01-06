@@ -1,4 +1,4 @@
-EFGs
+EFGs (Extended functional groups)
 ====
 
 .. image:: https://img.shields.io/pypi/v/EFGs.svg
@@ -11,61 +11,45 @@ EFGs
 
 Extended Functional Groups
 
-Version 0.1.0
-Original Version
+Extended functional group is a generalized version of traditional functional group and it also contains chemical groups that formed by only carbon atoms. It is inspired by Peter Ertl's work: [An algorithm to identify functional groups in organic molecules
+](https://jcheminf.biomedcentral.com/articles/10.1186/s13321-017-0225-z). Built based on that, we also induced the idea that a moelcule should be fully covered by 'Functional Groups'.
+The philosophy of EFG (Extended functional group) is to do fragmentation on molecules so that all fragments of the molecule are chemical valid. To do that, we:
 
+1. Identify aromatic structures. If two atoms shared the same aromatic ring system, they would be merged.
+2. Identify special substructures:
+    * Mark all heteroatoms in a molecule
+    * Mark ‘special’ carbon atoms (carbon atoms with double/triple bonds, acetal carbons and three-membered heterocycles.)
+    * Merge all connected marked atoms to a single functional group
+3. Identify simple carbon chains: sp3 carbons connected by two or more hydrogens
+4. Other single atoms The number of single atoms can be significantly reduced by defining subclasses and merging some of them together. All atoms are classified by their aromaticity, degree and formal charge and recorded as element symbol followed by three number corresponding to above properties. For example, Hydrogen ($𝐻_2$) would be H010, methyl group would be C010.
 
-Version 0.2.0
-1. Identify functional group: atomID and typeID are arranged based on index order in atom and type.
-2. mol2frag, modified the code (remove the calling of GetSubstructMatches)
-3. mol2frag, fix some substructure decomposition with 'white list'
+In order to alleviate the imbalance distribution of different EFGs, we proposed an iterative way to selectively decompose large functional groups:
+1. Set a cut-off value α (0<α<1)
+2. Collect sparse functional groups whose rankings are behind top α in frequency distribution
+3. Further decompose collected functional groups:
+    * a. Neighboring small functional groups which would be merged before would not be merged anymore unless they have shared atom(s).
+    * b. (If a. is not applicable) Cut all single bonds
+4. Repeat previous steps until the number of functional groups does not change.
 
-Version 0.3.0
-1. mol2frag: And new argument: isomericSmiles=True
-2. mol2frag: Fix the bug that got wrong index (indexes changed even if canonical is set to False) when deal with aromatic complex molecules 
-3. cleavage, fix the iterative algorithm
+For most molecular datasets, this method is able to describe > 99% molecules with < 1% number of EFGs. 
 
-Version 0.3.4
-1. standize: accept mol as inputs. Be able to return order if Order=True
-2. Fix bugs when dealing with some molecules.
-e.g.:
-N#Cc1cccc2[nH][nH]c3nc(c1)-c23
-O=C=c1cc2ccc3c(c2[nH]1)C=CN=3
-
-Version 0.4.0
-1. extractAromatic: Improved with merge algotirhm. Fix bugs when dealing with some molecules.
-e.g.:
-N#Cc1ccc2c(c1)NC(Cl)=c1c(Cl)ccnc1=N2
-
-Version 0.5.0
-1. sandize: Dectect problematic molecules and raise AssertionError if it cannot parsed by GetSubstructMatches()
-e.g.:
-Nc1cc2c3ccc(n1)c2c3
-
-Version 0.6.0
-1. sandize: fix possible AssertionError
-e.g.:
-Nc1cc2c3ccc(n1)c2c3
-
-
-Version 0.7.0
-1. mol2frag: fix explicit Hs problems in some molecules with H unremovable
-
-Version 0.8.0
-1. Support three way to treat Hs:
-TreatHs: The way to treat Hs. Default: 'ignore' (Other options: 'separate': treat Hs separately (H010); 'include': merged to neighboring EFGs) 
-Here 'ignore' means implicit Hs default by rdkit
 Usage
 -----
+
+See `Tutorial.ipynb` in Examples folder.
+`mol2frag` is the core function to do the fragmentation.
 
 Installation
 ------------
 
+```bash
+python setup.py install
+```
+
 Requirements
 ^^^^^^^^^^^^
 
-Compatibility
--------------
+rdkit >= 2019.03
 
 Licence
 -------

@@ -262,15 +262,16 @@ def breakBond(m, MapNum=False, returnidx=False):
 def mol2frag(raw_mol, TreatHs='ignore', returnidx=False, toEnd=False, vocabulary=(), extra_included=False, isomericSmiles=True, UnknownIdentity=False, extra_backup={}):
     '''
     raw_mol: rdkit mol object to be decompose
-    TreatHs: The way to treat Hs. Default: 'ignore' (Other options: 'separate': treat Hs separately; 'include': merged to neighboring EFGs) 
-    returnidx: Whether cooresponding atom index of EFGs shouls be returned. (Default=False)
+    TreatHs: (optional) The way to treat Hs. Default: 'ignore' (Other options: 'separate': treat Hs separately; 'include': merged to neighboring EFGs) 
+    returnidx: (optional) Whether cooresponding atom index of EFGs shouls be returned. (Default=False)
     toEnd: Whether to decompose to the end. (Default=False, will only do 1-step decomposition)
-    vocabulary: A list of smiles which contains EFGs. This argument would be ignore if 
+    vocabulary: (optional) A list of smiles which contains EFGs. This argument would be ignore if 
     toEnd=False. If toEnd is set to True, this argument is required. (Default=None)
-    extra_included: If fragments outside of vocabulary should be parsed. (Default=False, will throw
+    extra_included: (optional) If fragments outside of vocabulary should be parsed. (Default=False, will throw
     an error if a fragment cannot be found in vocabulary). When it is set to True, additional fragments
     would be simply classified based on their aromaticity.
-    extra_backup: If an empty dictionary is provided, additional fragnents' smiles would be added. 
+    isomericSmiles: (optional) include information about stereochemistry in the SMILES.
+    extra_backup: (optional) If an empty dictionary is provided, additional fragments' smiles would be added. 
     return:
     Functional groups' smiles (or 'Aromatic'/'Non-aromatic') and C/Hs
     (or)
