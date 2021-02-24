@@ -1,12 +1,12 @@
 EFGs (Extended functional groups)
-====
+=======================================================
 
 .. image:: https://img.shields.io/pypi/v/EFGs.svg
     :target: https://pypi.python.org/pypi/EFGs
     :alt: Latest PyPI version
 
 Extended Functional Groups
----------
+----------------------------
 
 Extended functional group is a generalized version of traditional functional group and it also contains chemical groups that formed by only carbon atoms. It is inspired by `Peter Ertl`_'s work: 
 
@@ -24,7 +24,7 @@ The philosophy of EFG (Extended functional group) is to do fragmentation on mole
     * Mark ‘special’ carbon atoms (carbon atoms with double/triple bonds, acetal carbons and three-membered heterocycles.)
     * Merge all connected marked atoms to a single functional group
 3. **Identify simple carbon chains**: sp3 carbons connected by two or more hydrogens
-4. **Other single atoms** The number of single atoms can be significantly reduced by defining subclasses and merging some of them together. All atoms are classified by their aromaticity, degree and formal charge and recorded as element symbol followed by three number corresponding to above properties. For example, Hydrogen ($𝐻_2$) would be H010, methyl group would be C010.
+4. **Other single atoms** The number of single atoms can be significantly reduced by defining subclasses and merging some of them together. All atoms are classified by their aromaticity, degree and formal charge and recorded as element symbol followed by three number corresponding to above properties. For example, Hydrogen (H\ :sub:`2`) would be H010, methyl group would be C010.
 
 .. image:: image.png
 
@@ -56,6 +56,7 @@ Installation
    $ git clone https://github.com/HelloJocelynLu/EFGs.git
    $ cd EFGs/
    $ python setup.py install
+   $ python setup.py test # optional
 
 2. Install from pip:
 
@@ -81,6 +82,6 @@ Authors
 
 
 Reference
--------
+----------
 
 Lu, J. N.; Xia, S.; Lu, J. Y.; Zhang, Y. K., Dataset Construction to Explore Chemical Space with 3D Geometry and Deep Learning. J. Chem. Inf. Model. 2021
