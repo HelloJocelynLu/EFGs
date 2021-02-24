@@ -1,0 +1,6 @@
+OCC1CCC(O1)[N]2C=NC3=C2N=CNC3=O
+N#Cc1cccc2[nH][nH]c3nc(c1)-c23
+O=C=c1cc2ccc3c(c2[nH]1)C=CN=3
+N#Cc1ccc2c(c1)NC(Cl)=c1c(Cl)ccnc1=N2
+Nc1cc2c3ccc(n1)c2c3
+Nc1cc2c3ccc(n1)c2c3

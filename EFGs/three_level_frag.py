@@ -77,8 +77,10 @@ def sp3merge(atom1, atom2):
 
 def aromaticmerge(atom1, atom2, bond):
     '''Given two atoms and bond between them, to see if they can merge into an aromatic ring.'''
+    # I would not expect structures like `c1ccc2c(c1)-c1ccccc1-2`
     if atom1.GetIsAromatic() and atom2.GetIsAromatic() and bond.GetIsAromatic():
         return Chem.BondType.AROMATIC
+    # Also include some dipoles
     if atom1.GetIsAromatic() or atom2.GetIsAromatic():
         if bond.GetBondTypeAsDouble()==2.0 or ((atom1.GetFormalCharge()!=0 and atom1.GetIsAromatic()) or \
         (atom2.GetFormalCharge()!=0 and atom2.GetIsAromatic())):
@@ -200,7 +202,7 @@ def extractAromatic(mol):
     for group in groups:
         group = list(group)
         cur_mol = AtomListToSubMol(m, group)
-        Chem.SanitizeMol(cur_mol)
+       # Chem.SanitizeMol(cur_mol)
         aro_fg, order = standize(cur_mol, Order=True, asMol=True)
         aro.append(standize(aro_fg))
         new_mol_index.append(tuple(group[i] for i in order))

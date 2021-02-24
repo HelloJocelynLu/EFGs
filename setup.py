@@ -28,7 +28,8 @@ setup(
     packages=find_packages(exclude=('tests',)),
 
     install_requires=[],
-
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest'],
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'License :: OSI Approved :: MIT License',

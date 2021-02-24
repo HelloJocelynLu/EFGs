@@ -5,11 +5,8 @@ EFGs (Extended functional groups)
     :target: https://pypi.python.org/pypi/EFGs
     :alt: Latest PyPI version
 
-.. image:: https://travis-ci.org/borntyping/cookiecutter-pypackage-minimal.png
-   :target: https://travis-ci.org/borntyping/cookiecutter-pypackage-minimal
-   :alt: Latest Travis CI build status
-
 Extended Functional Groups
+---------
 
 Extended functional group is a generalized version of traditional functional group and it also contains chemical groups that formed by only carbon atoms. It is inspired by `Peter Ertl`_'s work: 
 
@@ -45,6 +42,27 @@ In order to alleviate the imbalance distribution of different EFGs, we proposed 
 
 For most molecular datasets, this method is able to describe > 99% molecules with < 1% number of EFGs. 
 
+Requirements
+^^^^^^^^^^^^
+
+rdkit >= 2019.03
+
+Installation
+------------
+1. To install from source (with latest version):
+
+.. code:: bash
+
+   $ git clone https://github.com/HelloJocelynLu/EFGs.git
+   $ cd EFGs/
+   $ python setup.py install
+
+2. Install from pip:
+
+.. code:: bash
+
+   $ pip install EFGs
+
 Usage
 -----
 
@@ -52,22 +70,17 @@ See *Tutorial.ipynb* in Examples/ folder for detailed examples.
 
 *mol2frag* is the core function to do the fragmentation.
 
-Installation
-------------
-
-.. code:: bash
-
-   $ python setup.py install
-
-Requirements
-^^^^^^^^^^^^
-
-rdkit >= 2019.03
-
 Licence
 -------
+MIT Licence.
 
 Authors
 -------
 
 `EFGs` was written by `Jocelyn Lu <jl8570@nyu.edu>`_.
+
+
+Reference
+-------
+
+Lu, J. N.; Xia, S.; Lu, J. Y.; Zhang, Y. K., Dataset Construction to Explore Chemical Space with 3D Geometry and Deep Learning. J. Chem. Inf. Model. 2021
