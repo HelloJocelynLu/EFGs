@@ -84,4 +84,7 @@ Authors
 Reference
 ----------
 
-Lu, J. N.; Xia, S.; Lu, J. Y.; Zhang, Y. K., Dataset Construction to Explore Chemical Space with 3D Geometry and Deep Learning. J. Chem. Inf. Model. 2021
+Jianing Lu, Song Xia, Jieyu Lu and Yingkai Zhang., Dataset Construction to Explore Chemical Space with 3D Geometry and Deep Learning. *J. Chem. Inf. Model.*, **61**. (2021) https://pubs.acs.org/doi/10.1021/acs.jcim.1c00007
+
+Other projects in Zhang's Lab:
+https://www.nyu.edu/projects/yzhang/IMA/
