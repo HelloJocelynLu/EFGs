@@ -86,5 +86,18 @@ Reference
 
 Jianing Lu, Song Xia, Jieyu Lu and Yingkai Zhang., Dataset Construction to Explore Chemical Space with 3D Geometry and Deep Learning. *J. Chem. Inf. Model.*, **61**. (2021) https://pubs.acs.org/doi/10.1021/acs.jcim.1c00007
 
+.. code:: bash
+
+    @article{lu2021dataset,
+      title={Dataset Construction to Explore Chemical Space with 3D Geometry and Deep Learning},
+      author={Lu, Jianing and Xia, Song and Lu, Jieyu and Zhang, Yingkai},
+      journal={Journal of Chemical Information and Modeling},
+      volume={61},
+      number={3},
+      pages={1095--1104},
+      year={2021},
+      publisher={ACS Publications}
+    }
+
 Other projects in Zhang's Lab:
 https://www.nyu.edu/projects/yzhang/IMA/
